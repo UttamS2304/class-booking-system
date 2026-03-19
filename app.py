@@ -309,78 +309,200 @@ def show_sales_dashboard():
         "Add Feedback"
     ])
 
-   with tab1:
-    st.subheader("Book a Class")
+    # -------------------- TAB 1: BOOK CLASS --------------------
+    with tab1:
+        st.subheader("Book a Class")
 
-    with st.form("booking_form"):
+        with st.form("booking_form"):
+            session_type = st.selectbox(
+                "Session Type",
+                ["live_class", "product_training", "avrd", "workshop"]
+            )
 
-        session_type = st.selectbox(
-            "Session Type",
-            ["live_class", "product_training", "avrd", "workshop"]
-        )
+            school_name = st.text_input("School Name")
+            school_grade = st.text_input("School Grade")
 
-        school_name = st.text_input("School Name")
-        school_grade = st.text_input("School Grade")
+            subject = ""
+            class_standard = ""
 
-        subject = None
-        class_standard = None
+            if session_type in ["live_class", "product_training"]:
+                subject = st.text_input("Subject")
 
-        # Conditional fields
-        if session_type in ["live_class", "product_training"]:
-            subject = st.text_input("Subject")
+            if session_type == "live_class":
+                class_standard = st.text_input("Class / Standard")
 
-        if session_type == "live_class":
-            class_standard = st.text_input("Class / Standard")
+            preferred_date = st.date_input("Preferred Date")
+            preferred_time = st.text_input("Preferred Time Slot")
+            curriculum = st.text_input("Curriculum")
+            book_title = st.text_input("Book Title")
+            area = st.text_input("Area / Location")
 
-        preferred_date = st.date_input("Preferred Date")
+            submitted = st.form_submit_button("Submit Booking", use_container_width=True)
 
-        preferred_time = st.text_input("Preferred Time Slot")
+        if submitted:
+            try:
+                # sales person brand dynamically nikalna
+                brand_res = (
+                    supabase.table("sales_profiles")
+                    .select("brand_type")
+                    .eq("mobile_number", st.session_state.user_mobile)
+                    .execute()
+                )
 
-        curriculum = st.text_input("Curriculum")
-        book_title = st.text_input("Book Title")
-        area = st.text_input("Area / Location")
+                brand_type = "creative_kids"
+                if brand_res.data and len(brand_res.data) > 0:
+                    brand_type = brand_res.data[0]["brand_type"]
 
-        submitted = st.form_submit_button("Submit Booking")
+                # duration according to session type
+                if session_type == "live_class":
+                    duration_minutes = 45
+                elif session_type == "product_training":
+                    duration_minutes = 45
+                elif session_type == "avrd":
+                    duration_minutes = 60
+                elif session_type == "workshop":
+                    duration_minutes = 120
+                else:
+                    duration_minutes = 45
 
-    if submitted:
+                booking_data = {
+                    "sales_person_number": st.session_state.user_mobile,
+                    "resource_person_number": None,
+                    "brand_type": brand_type,
+                    "session_type": session_type,
+                    "duration_minutes": duration_minutes,
+                    "school_name": school_name,
+                    "school_grade": school_grade,
+                    "subject": subject if subject else None,
+                    "class_standard": class_standard if class_standard else None,
+                    "preferred_date": str(preferred_date),
+                    "preferred_time_slot": preferred_time,
+                    "curriculum": curriculum,
+                    "book_title": book_title,
+                    "area_location": area,
+                    "status": "pending"
+                }
+
+                supabase.table("bookings").insert(booking_data).execute()
+                st.success("Class booking request submitted successfully.")
+
+            except Exception as e:
+                st.error(f"Booking failed: {e}")
+
+    # -------------------- TAB 2: CLASS STATUS --------------------
+    with tab2:
+        st.subheader("Class Status")
+
         try:
-            booking_data = {
-                "sales_person_number": st.session_state.user_mobile,
-                "resource_person_number": None,
-                "brand_type": "creative_kids",  # abhi hardcoded, baad me dynamic karenge
-                "session_type": session_type,
-                "duration_minutes": 45,
-                "school_name": school_name,
-                "school_grade": school_grade,
-                "subject": subject,
-                "class_standard": class_standard,
-                "preferred_date": str(preferred_date),
-                "preferred_time_slot": preferred_time,
-                "curriculum": curriculum,
-                "book_title": book_title,
-                "area_location": area,
-                "status": "pending"
-            }
+            status_res = (
+                supabase.table("bookings")
+                .select("*")
+                .eq("sales_person_number", st.session_state.user_mobile)
+                .order("created_at", desc=True)
+                .execute()
+            )
 
-            supabase.table("bookings").insert(booking_data).execute()
-
-            st.success("Class booking request submitted ✅")
+            if status_res.data:
+                for booking in status_res.data:
+                    st.markdown("---")
+                    st.write(f"**Session Type:** {booking.get('session_type', '')}")
+                    st.write(f"**School Name:** {booking.get('school_name', '')}")
+                    st.write(f"**Date:** {booking.get('preferred_date', '')}")
+                    st.write(f"**Time Slot:** {booking.get('preferred_time_slot', '')}")
+                    st.write(f"**Status:** {booking.get('status', '')}")
+            else:
+                st.info("No class status found.")
 
         except Exception as e:
-            st.error(f"Error: {e}")
+            st.error(f"Could not load class status: {e}")
 
-    with tab2:
-        st.info("Class status yahan dikhengi.")
-
+    # -------------------- TAB 3: ALL CLASSES --------------------
     with tab3:
-        st.info("All previous classes yahan dikhengi.")
+        st.subheader("All Classes")
 
+        try:
+            all_res = (
+                supabase.table("bookings")
+                .select("*")
+                .eq("sales_person_number", st.session_state.user_mobile)
+                .order("preferred_date", desc=True)
+                .execute()
+            )
+
+            if all_res.data:
+                for booking in all_res.data:
+                    st.markdown("---")
+                    st.write(f"**Session Type:** {booking.get('session_type', '')}")
+                    st.write(f"**School Name:** {booking.get('school_name', '')}")
+                    st.write(f"**School Grade:** {booking.get('school_grade', '')}")
+                    st.write(f"**Subject:** {booking.get('subject', '')}")
+                    st.write(f"**Class / Standard:** {booking.get('class_standard', '')}")
+                    st.write(f"**Preferred Date:** {booking.get('preferred_date', '')}")
+                    st.write(f"**Preferred Time Slot:** {booking.get('preferred_time_slot', '')}")
+                    st.write(f"**Curriculum:** {booking.get('curriculum', '')}")
+                    st.write(f"**Book Title:** {booking.get('book_title', '')}")
+                    st.write(f"**Area / Location:** {booking.get('area_location', '')}")
+                    st.write(f"**Status:** {booking.get('status', '')}")
+            else:
+                st.info("No classes found.")
+
+        except Exception as e:
+            st.error(f"Could not load classes: {e}")
+
+    # -------------------- TAB 4: ADD FEEDBACK --------------------
     with tab4:
-        st.info("Feedback form yahan aayega.")
+        st.subheader("Add Feedback")
 
+        try:
+            feedback_booking_res = (
+                supabase.table("bookings")
+                .select("*")
+                .eq("sales_person_number", st.session_state.user_mobile)
+                .in_("status", ["completed", "feedback_pending", "closed"])
+                .order("preferred_date", desc=True)
+                .execute()
+            )
+
+            if feedback_booking_res.data:
+                booking_options = {
+                    f"{b.get('school_name', '')} | {b.get('session_type', '')} | {b.get('preferred_date', '')}": b["id"]
+                    for b in feedback_booking_res.data
+                }
+
+                selected_booking_label = st.selectbox(
+                    "Select Booking",
+                    list(booking_options.keys())
+                )
+
+                feedback_text = st.text_area("Enter Feedback")
+
+                if st.button("Submit Feedback", use_container_width=True):
+                    selected_booking_id = booking_options[selected_booking_label]
+
+                    if not feedback_text.strip():
+                        st.error("Please enter feedback.")
+                    else:
+                        try:
+                            feedback_data = {
+                                "booking_id": selected_booking_id,
+                                "sales_person_number": st.session_state.user_mobile,
+                                "feedback_text": feedback_text
+                            }
+
+                            supabase.table("feedback_sales").insert(feedback_data).execute()
+                            st.success("Feedback submitted successfully.")
+
+                        except Exception as e:
+                            st.error(f"Feedback submission failed: {e}")
+            else:
+                st.info("No completed classes available for feedback.")
+
+        except Exception as e:
+            st.error(f"Could not load feedback section: {e}")
+
+    st.markdown("---")
     if st.button("Logout"):
         logout()
-
 
 def show_resource_dashboard():
     st.title("Resource Dashboard")
