@@ -516,21 +516,197 @@ def show_resource_dashboard():
         "Add Remark"
     ])
 
+    # -------------------- TAB 1: UPCOMING CLASSES --------------------
     with tab1:
-        st.info("Upcoming classes yahan dikhengi.")
+        st.subheader("Upcoming Classes")
 
+        try:
+            upcoming_res = (
+                supabase.table("bookings")
+                .select("*")
+                .eq("resource_person_number", st.session_state.user_mobile)
+                .in_("status", ["approved", "rp_assigned", "zoom_sent"])
+                .order("preferred_date", desc=False)
+                .execute()
+            )
+
+            if upcoming_res.data:
+                for booking in upcoming_res.data:
+                    st.markdown("---")
+                    st.write(f"**Session Type:** {booking.get('session_type', '')}")
+                    st.write(f"**School Name:** {booking.get('school_name', '')}")
+                    st.write(f"**School Grade:** {booking.get('school_grade', '')}")
+                    st.write(f"**Subject:** {booking.get('subject', '')}")
+                    st.write(f"**Class / Standard:** {booking.get('class_standard', '')}")
+                    st.write(f"**Preferred Date:** {booking.get('preferred_date', '')}")
+                    st.write(f"**Preferred Time Slot:** {booking.get('preferred_time_slot', '')}")
+                    st.write(f"**Curriculum:** {booking.get('curriculum', '')}")
+                    st.write(f"**Book Title:** {booking.get('book_title', '')}")
+                    st.write(f"**Area / Location:** {booking.get('area_location', '')}")
+                    st.write(f"**Status:** {booking.get('status', '')}")
+
+                    if booking.get("zoom_link"):
+                        st.write(f"**Zoom Link:** {booking.get('zoom_link')}")
+            else:
+                st.info("No upcoming classes found.")
+
+        except Exception as e:
+            st.error(f"Could not load upcoming classes: {e}")
+
+    # -------------------- TAB 2: COMPLETED CLASSES --------------------
     with tab2:
-        st.info("Completed classes aur sales feedback yahan dikhengi.")
+        st.subheader("Completed Classes with Sales Feedback")
 
+        try:
+            completed_res = (
+                supabase.table("bookings")
+                .select("*")
+                .eq("resource_person_number", st.session_state.user_mobile)
+                .in_("status", ["completed", "feedback_pending", "closed"])
+                .order("preferred_date", desc=True)
+                .execute()
+            )
+
+            if completed_res.data:
+                for booking in completed_res.data:
+                    st.markdown("---")
+                    st.write(f"**Session Type:** {booking.get('session_type', '')}")
+                    st.write(f"**School Name:** {booking.get('school_name', '')}")
+                    st.write(f"**Preferred Date:** {booking.get('preferred_date', '')}")
+                    st.write(f"**Preferred Time Slot:** {booking.get('preferred_time_slot', '')}")
+                    st.write(f"**Status:** {booking.get('status', '')}")
+
+                    try:
+                        sales_feedback_res = (
+                            supabase.table("feedback_sales")
+                            .select("*")
+                            .eq("booking_id", booking["id"])
+                            .execute()
+                        )
+
+                        if sales_feedback_res.data:
+                            for fb in sales_feedback_res.data:
+                                st.write(f"**Sales Feedback:** {fb.get('feedback_text', '')}")
+                        else:
+                            st.write("**Sales Feedback:** Not submitted yet")
+                    except Exception as inner_e:
+                        st.write(f"**Sales Feedback:** Could not load ({inner_e})")
+            else:
+                st.info("No completed classes found.")
+
+        except Exception as e:
+            st.error(f"Could not load completed classes: {e}")
+
+    # -------------------- TAB 3: AVAILABILITY --------------------
     with tab3:
-        st.info("Availability marking yahan hoga.")
+        st.subheader("Mark Availability / Unavailability")
 
+        with st.form("availability_form"):
+            availability_date = st.date_input("Date")
+            start_time = st.time_input("Start Time")
+            end_time = st.time_input("End Time")
+            availability_type = st.selectbox("Type", ["available", "unavailable"])
+            notes = st.text_area("Notes")
+
+            availability_submitted = st.form_submit_button("Save Availability", use_container_width=True)
+
+        if availability_submitted:
+            try:
+                availability_data = {
+                    "resource_person_number": st.session_state.user_mobile,
+                    "date": str(availability_date),
+                    "start_time": str(start_time),
+                    "end_time": str(end_time),
+                    "type": availability_type,
+                    "notes": notes
+                }
+
+                supabase.table("resource_availability").insert(availability_data).execute()
+                st.success("Availability saved successfully.")
+            except Exception as e:
+                st.error(f"Could not save availability: {e}")
+
+        st.markdown("### Your Availability Records")
+
+        try:
+            availability_res = (
+                supabase.table("resource_availability")
+                .select("*")
+                .eq("resource_person_number", st.session_state.user_mobile)
+                .order("date", desc=True)
+                .execute()
+            )
+
+            if availability_res.data:
+                for item in availability_res.data:
+                    st.markdown("---")
+                    st.write(f"**Date:** {item.get('date', '')}")
+                    st.write(f"**Start Time:** {item.get('start_time', '')}")
+                    st.write(f"**End Time:** {item.get('end_time', '')}")
+                    st.write(f"**Type:** {item.get('type', '')}")
+                    st.write(f"**Notes:** {item.get('notes', '')}")
+            else:
+                st.info("No availability records found.")
+
+        except Exception as e:
+            st.error(f"Could not load availability records: {e}")
+
+    # -------------------- TAB 4: ADD REMARK / FEEDBACK --------------------
     with tab4:
-        st.info("Remark / feedback yahan hoga.")
+        st.subheader("Add Remark / Feedback for Conducted Class")
 
+        try:
+            remark_booking_res = (
+                supabase.table("bookings")
+                .select("*")
+                .eq("resource_person_number", st.session_state.user_mobile)
+                .in_("status", ["completed", "feedback_pending", "closed"])
+                .order("preferred_date", desc=True)
+                .execute()
+            )
+
+            if remark_booking_res.data:
+                booking_options = {
+                    f"{b.get('school_name', '')} | {b.get('session_type', '')} | {b.get('preferred_date', '')}": b["id"]
+                    for b in remark_booking_res.data
+                }
+
+                selected_booking_label = st.selectbox(
+                    "Select Booking",
+                    list(booking_options.keys())
+                )
+
+                feedback_text = st.text_area("Feedback")
+                remark_text = st.text_area("Remark")
+
+                if st.button("Submit Remark / Feedback", use_container_width=True):
+                    selected_booking_id = booking_options[selected_booking_label]
+
+                    if not feedback_text.strip() and not remark_text.strip():
+                        st.error("Please enter feedback or remark.")
+                    else:
+                        try:
+                            feedback_data = {
+                                "booking_id": selected_booking_id,
+                                "resource_person_number": st.session_state.user_mobile,
+                                "feedback_text": feedback_text,
+                                "remark_text": remark_text
+                            }
+
+                            supabase.table("feedback_resource").insert(feedback_data).execute()
+                            st.success("Remark / feedback submitted successfully.")
+
+                        except Exception as e:
+                            st.error(f"Submission failed: {e}")
+            else:
+                st.info("No completed classes available for remarks.")
+
+        except Exception as e:
+            st.error(f"Could not load remark section: {e}")
+
+    st.markdown("---")
     if st.button("Logout"):
         logout()
-
 
 def show_admin_dashboard():
     st.title("Admin Dashboard")
