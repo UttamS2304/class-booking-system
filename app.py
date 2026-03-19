@@ -309,8 +309,65 @@ def show_sales_dashboard():
         "Add Feedback"
     ])
 
-    with tab1:
-        st.info("Booking form yahan aayega.")
+   with tab1:
+    st.subheader("Book a Class")
+
+    with st.form("booking_form"):
+
+        session_type = st.selectbox(
+            "Session Type",
+            ["live_class", "product_training", "avrd", "workshop"]
+        )
+
+        school_name = st.text_input("School Name")
+        school_grade = st.text_input("School Grade")
+
+        subject = None
+        class_standard = None
+
+        # Conditional fields
+        if session_type in ["live_class", "product_training"]:
+            subject = st.text_input("Subject")
+
+        if session_type == "live_class":
+            class_standard = st.text_input("Class / Standard")
+
+        preferred_date = st.date_input("Preferred Date")
+
+        preferred_time = st.text_input("Preferred Time Slot")
+
+        curriculum = st.text_input("Curriculum")
+        book_title = st.text_input("Book Title")
+        area = st.text_input("Area / Location")
+
+        submitted = st.form_submit_button("Submit Booking")
+
+    if submitted:
+        try:
+            booking_data = {
+                "sales_person_number": st.session_state.user_mobile,
+                "resource_person_number": None,
+                "brand_type": "creative_kids",  # abhi hardcoded, baad me dynamic karenge
+                "session_type": session_type,
+                "duration_minutes": 45,
+                "school_name": school_name,
+                "school_grade": school_grade,
+                "subject": subject,
+                "class_standard": class_standard,
+                "preferred_date": str(preferred_date),
+                "preferred_time_slot": preferred_time,
+                "curriculum": curriculum,
+                "book_title": book_title,
+                "area_location": area,
+                "status": "pending"
+            }
+
+            supabase.table("bookings").insert(booking_data).execute()
+
+            st.success("Class booking request submitted ✅")
+
+        except Exception as e:
+            st.error(f"Error: {e}")
 
     with tab2:
         st.info("Class status yahan dikhengi.")
