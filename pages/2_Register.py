@@ -11,10 +11,8 @@ col1, col2 = st.columns(2)
 
 with col1:
     st.subheader("Sales Person")
-    if st.button("Register as Sales Person"):
-        st.switch_page("pages/3_Sales_Register.py")
+    st.page_link("pages/3_Sales_Register.py", label="Register as Sales Person")
 
 with col2:
     st.subheader("Resource Person")
-    if st.button("Register as Resource Person"):
-        st.switch_page("pages/4_Resource_Register.py")
+    st.page_link("pages/4_Resource_Register.py", label="Register as Resource Person")
