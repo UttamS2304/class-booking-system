@@ -11,4 +11,5 @@ supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
 st.title("Class Booking System")
 st.write("Welcome to the class booking platform.")
 
-st.info("Use the sidebar to navigate to Login or Register")
+st.markdown("### Choose an option from the sidebar")
+st.info("Go to Login or Register from the left sidebar.")
