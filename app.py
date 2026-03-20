@@ -1,6 +1,9 @@
 import streamlit as st
 from supabase import create_client
 from datetime import datetime
+import smtplib
+from email.mime.text import MIMEText
+from email.mime.multipart import MIMEMultipart
 
 st.set_page_config(page_title="Class Booking System", layout="wide")
 
@@ -722,7 +725,7 @@ def show_admin_dashboard():
         "Reports"
     ])
 
-    # -------------------- TAB 1: ALL BOOKINGS --------------------
+    # -------------------- TAB 1: ALL BOOKINGS + ZOOM LINK --------------------
     with tab1:
         st.subheader("All Class Bookings")
 
@@ -736,8 +739,10 @@ def show_admin_dashboard():
 
             if bookings_res.data:
                 for booking in bookings_res.data:
+                    booking_id = booking.get("id", "")
+
                     st.markdown("---")
-                    st.write(f"**Booking ID:** {booking.get('id', '')}")
+                    st.write(f"**Booking ID:** {booking_id}")
                     st.write(f"**Sales Person Number:** {booking.get('sales_person_number', '')}")
                     st.write(f"**Resource Person Number:** {booking.get('resource_person_number', '')}")
                     st.write(f"**Brand Type:** {booking.get('brand_type', '')}")
@@ -752,8 +757,66 @@ def show_admin_dashboard():
                     st.write(f"**Book Title:** {booking.get('book_title', '')}")
                     st.write(f"**Area / Location:** {booking.get('area_location', '')}")
                     st.write(f"**Status:** {booking.get('status', '')}")
+
                     if booking.get("zoom_link"):
-                        st.write(f"**Zoom Link:** {booking.get('zoom_link')}")
+                        st.write(f"**Existing Zoom Link:** {booking.get('zoom_link')}")
+
+                    zoom_link_value = st.text_input(
+                        f"Zoom Link for booking {booking_id}",
+                        value=booking.get("zoom_link", "") if booking.get("zoom_link") else "",
+                        key=f"zoom_input_{booking_id}"
+                    )
+
+                    if st.button(f"Send Zoom Link - {booking_id}", key=f"zoom_send_{booking_id}"):
+                        try:
+                            if not zoom_link_value.strip():
+                                st.error("Please enter Zoom link.")
+                            else:
+                                supabase.table("bookings").update({
+                                    "zoom_link": zoom_link_value,
+                                    "status": "zoom_sent"
+                                }).eq("id", booking_id).execute()
+
+                                # Sales person mail
+                                sales_user_res = (
+                                    supabase.table("users")
+                                    .select("*")
+                                    .eq("mobile_number", booking["sales_person_number"])
+                                    .execute()
+                                )
+
+                                if sales_user_res.data:
+                                    sales_user = sales_user_res.data[0]
+                                    subject_line, body = build_zoom_link_email(
+                                        booking,
+                                        sales_user.get("name", "Sales Person"),
+                                        zoom_link_value
+                                    )
+                                    send_email(sales_user["email"], subject_line, body)
+
+                                # Resource person mail
+                                if booking.get("resource_person_number"):
+                                    rp_user_res = (
+                                        supabase.table("users")
+                                        .select("*")
+                                        .eq("mobile_number", booking["resource_person_number"])
+                                        .execute()
+                                    )
+
+                                    if rp_user_res.data:
+                                        rp_user = rp_user_res.data[0]
+                                        subject_line, body = build_zoom_link_email(
+                                            booking,
+                                            rp_user.get("name", "Resource Person"),
+                                            zoom_link_value
+                                        )
+                                        send_email(rp_user["email"], subject_line, body)
+
+                                st.success("Zoom link sent successfully.")
+                                st.rerun()
+
+                        except Exception as e:
+                            st.error(f"Zoom mail failed: {e}")
             else:
                 st.info("No bookings found.")
 
@@ -833,17 +896,16 @@ def show_admin_dashboard():
                         resource_options[label] = rp.get("mobile_number")
 
                 for booking in pending_res.data:
+                    booking_id = booking.get("id")
+
                     st.markdown("---")
-                    st.write(f"**Booking ID:** {booking.get('id', '')}")
+                    st.write(f"**Booking ID:** {booking_id}")
                     st.write(f"**Session Type:** {booking.get('session_type', '')}")
                     st.write(f"**School Name:** {booking.get('school_name', '')}")
                     st.write(f"**Subject:** {booking.get('subject', '')}")
                     st.write(f"**Preferred Date:** {booking.get('preferred_date', '')}")
                     st.write(f"**Preferred Time Slot:** {booking.get('preferred_time_slot', '')}")
                     st.write(f"**Current Status:** {booking.get('status', '')}")
-
-                    current_session_type = booking.get("session_type", "")
-                    booking_id = booking.get("id")
 
                     if resource_options:
                         selected_rp_label = st.selectbox(
@@ -864,14 +926,58 @@ def show_admin_dashboard():
                                     "status": "approved"
                                 }
 
-                                # Live class / Product training -> assign from selected RP
-                                # AVRD / Workshop -> manual RP allocation bhi yahi selectbox se
+                                assigned_number = None
                                 if selected_rp_label:
-                                    update_data["resource_person_number"] = resource_options[selected_rp_label]
+                                    assigned_number = resource_options[selected_rp_label]
+                                    update_data["resource_person_number"] = assigned_number
                                     update_data["status"] = "rp_assigned"
 
                                 supabase.table("bookings").update(update_data).eq("id", booking_id).execute()
-                                st.success(f"Booking {booking_id} approved successfully.")
+
+                                updated_booking_res = (
+                                    supabase.table("bookings")
+                                    .select("*")
+                                    .eq("id", booking_id)
+                                    .execute()
+                                )
+
+                                if updated_booking_res.data:
+                                    updated_booking = updated_booking_res.data[0]
+
+                                    # Sales person mail
+                                    sales_user_res = (
+                                        supabase.table("users")
+                                        .select("*")
+                                        .eq("mobile_number", updated_booking["sales_person_number"])
+                                        .execute()
+                                    )
+
+                                    if sales_user_res.data:
+                                        sales_user = sales_user_res.data[0]
+                                        sales_subject, sales_body = build_sales_confirmation_email(
+                                            updated_booking,
+                                            sales_user.get("name", "Sales Person")
+                                        )
+                                        send_email(sales_user["email"], sales_subject, sales_body)
+
+                                    # Resource person mail
+                                    if assigned_number:
+                                        rp_user_res = (
+                                            supabase.table("users")
+                                            .select("*")
+                                            .eq("mobile_number", assigned_number)
+                                            .execute()
+                                        )
+
+                                        if rp_user_res.data:
+                                            rp_user = rp_user_res.data[0]
+                                            rp_subject, rp_body = build_resource_assignment_email(
+                                                updated_booking,
+                                                rp_user.get("name", "Resource Person")
+                                            )
+                                            send_email(rp_user["email"], rp_subject, rp_body)
+
+                                st.success(f"Booking {booking_id} approved and emails sent.")
                                 st.rerun()
 
                             except Exception as e:
@@ -1036,6 +1142,149 @@ def show_admin_dashboard():
     st.markdown("---")
     if st.button("Logout"):
         logout()
+        
+def get_brand_display_name(brand_type):
+    if brand_type == "creative_kids":
+        return "Creative Kids"
+    elif brand_type == "little_genius":
+        return "Little Genius"
+    return "Cordova"
+
+
+def send_email(to_email, subject, body):
+    sender_email = st.secrets["SENDER_EMAIL"]
+    sender_password = st.secrets["SENDER_PASSWORD"]
+
+    msg = MIMEMultipart()
+    msg["From"] = sender_email
+    msg["To"] = to_email
+    msg["Subject"] = subject
+
+    msg.attach(MIMEText(body, "plain"))
+
+    server = smtplib.SMTP("smtp.gmail.com", 587)
+    server.starttls()
+    server.login(sender_email, sender_password)
+    server.sendmail(sender_email, to_email, msg.as_string())
+    server.quit()
+
+
+def build_sales_confirmation_email(booking, sales_person_name):
+    brand_name = get_brand_display_name(booking.get("brand_type"))
+    session_type = booking.get("session_type", "")
+    school_name = booking.get("school_name", "")
+    grade = booking.get("school_grade", "")
+    subject = booking.get("subject", "")
+    class_standard = booking.get("class_standard", "")
+    date = booking.get("preferred_date", "")
+    time_slot = booking.get("preferred_time_slot", "")
+    curriculum = booking.get("curriculum", "")
+    book_title = booking.get("book_title", "")
+    area = booking.get("area_location", "")
+
+    subject_line = f"Your Session is Booked - {brand_name}"
+
+    body = f"""Dear {sales_person_name},
+
+Greetings from {brand_name}!
+
+We are pleased to inform you that your session has been successfully booked. Please find the details below:
+
+Session Details:
+
+Session Type: {session_type}
+School Name: {school_name}
+Grade: {grade}
+Subject: {subject}
+Class: {class_standard}
+Date: {date}
+Time Slot: {time_slot}
+Curriculum: {curriculum}
+Book Title: {book_title}
+Area: {area}
+
+Kindly review the details and ensure all arrangements are in place from your end.
+
+For any changes or support, please feel free to reach out.
+
+Best regards,
+Admin
+{brand_name}
+"""
+    return subject_line, body
+
+
+def build_resource_assignment_email(booking, resource_person_name):
+    brand_name = get_brand_display_name(booking.get("brand_type"))
+    session_type = booking.get("session_type", "")
+    school_name = booking.get("school_name", "")
+    grade = booking.get("school_grade", "")
+    subject = booking.get("subject", "")
+    class_standard = booking.get("class_standard", "")
+    date = booking.get("preferred_date", "")
+    time_slot = booking.get("preferred_time_slot", "")
+    curriculum = booking.get("curriculum", "")
+    book_title = booking.get("book_title", "")
+    area = booking.get("area_location", "")
+
+    subject_line = f"New Session Assigned - {brand_name}"
+
+    body = f"""Dear {resource_person_name},
+
+Greetings from {brand_name}!
+
+You have been assigned a session. Please find the details below:
+
+Assigned Session Details:
+
+Session Type: {session_type}
+School Name: {school_name}
+Grade: {grade}
+Subject: {subject}
+Class: {class_standard}
+Date: {date}
+Time Slot: {time_slot}
+Curriculum: {curriculum}
+Book Title: {book_title}
+Area: {area}
+
+Kindly prepare accordingly and ensure timely availability for the session.
+
+In case of any queries or conflicts, please inform us at the earliest.
+
+Best regards,
+Admin
+{brand_name}
+"""
+    return subject_line, body
+
+
+def build_zoom_link_email(booking, recipient_name, zoom_link):
+    brand_name = get_brand_display_name(booking.get("brand_type"))
+    subject_line = f"Zoom Link for Your Session - {brand_name}"
+
+    body = f"""Dear {recipient_name},
+
+Greetings from {brand_name}!
+
+Please find below the Zoom link for your upcoming session:
+
+Session Type: {booking.get("session_type", "")}
+School Name: {booking.get("school_name", "")}
+Date: {booking.get("preferred_date", "")}
+Time Slot: {booking.get("preferred_time_slot", "")}
+
+Zoom Link:
+{zoom_link}
+
+Please be available on time.
+
+Best regards,
+Admin
+{brand_name}
+"""
+    return subject_line, body
+    
 
 # ---------- router ----------
 page = st.session_state.page
