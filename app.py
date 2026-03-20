@@ -244,7 +244,7 @@ def show_resource_register():
     "General Knowledge",
     "Pre Primary",
     "Pre Primary Hindi",
-    "Environment Science"
+    "Environmental Science"
 ]
 
     with st.form("resource_registration_form"):
@@ -339,10 +339,19 @@ def show_sales_dashboard():
         st.subheader("Book a Class")
 
         with st.form("booking_form"):
-            session_type = st.selectbox(
+            session_options = {
+                "Live Class (45 mins)": "live_class",
+                "Product Training (45 mins)": "product_training",
+                "AVRD Session (1 hour)": "avrd",
+                "Workshop (2 hours)": "workshop"
+}
+
+            selected_session_label = st.selectbox(
                 "Session Type",
-                ["live_class", "product_training", "avrd", "workshop"]
-            )
+            list(session_options.keys())
+)
+
+            session_type = session_options[selected_session_label]
 
             school_name = st.text_input("School Name")
             school_grade = st.text_input("School Grade")
