@@ -722,27 +722,320 @@ def show_admin_dashboard():
         "Reports"
     ])
 
+    # -------------------- TAB 1: ALL BOOKINGS --------------------
     with tab1:
-        st.info("All class bookings yahan dikhengi.")
+        st.subheader("All Class Bookings")
 
+        try:
+            bookings_res = (
+                supabase.table("bookings")
+                .select("*")
+                .order("created_at", desc=True)
+                .execute()
+            )
+
+            if bookings_res.data:
+                for booking in bookings_res.data:
+                    st.markdown("---")
+                    st.write(f"**Booking ID:** {booking.get('id', '')}")
+                    st.write(f"**Sales Person Number:** {booking.get('sales_person_number', '')}")
+                    st.write(f"**Resource Person Number:** {booking.get('resource_person_number', '')}")
+                    st.write(f"**Brand Type:** {booking.get('brand_type', '')}")
+                    st.write(f"**Session Type:** {booking.get('session_type', '')}")
+                    st.write(f"**School Name:** {booking.get('school_name', '')}")
+                    st.write(f"**School Grade:** {booking.get('school_grade', '')}")
+                    st.write(f"**Subject:** {booking.get('subject', '')}")
+                    st.write(f"**Class / Standard:** {booking.get('class_standard', '')}")
+                    st.write(f"**Preferred Date:** {booking.get('preferred_date', '')}")
+                    st.write(f"**Preferred Time Slot:** {booking.get('preferred_time_slot', '')}")
+                    st.write(f"**Curriculum:** {booking.get('curriculum', '')}")
+                    st.write(f"**Book Title:** {booking.get('book_title', '')}")
+                    st.write(f"**Area / Location:** {booking.get('area_location', '')}")
+                    st.write(f"**Status:** {booking.get('status', '')}")
+                    if booking.get("zoom_link"):
+                        st.write(f"**Zoom Link:** {booking.get('zoom_link')}")
+            else:
+                st.info("No bookings found.")
+
+        except Exception as e:
+            st.error(f"Could not load bookings: {e}")
+
+    # -------------------- TAB 2: SALES PERSONS MANAGE --------------------
     with tab2:
-        st.info("Sales persons manage yahan hoga.")
+        st.subheader("Sales Persons Manage")
 
+        try:
+            sales_users_res = (
+                supabase.table("users")
+                .select("*")
+                .eq("role", "sales")
+                .order("created_at", desc=True)
+                .execute()
+            )
+
+            if sales_users_res.data:
+                for user in sales_users_res.data:
+                    st.markdown("---")
+                    st.write(f"**Name:** {user.get('name', '')}")
+                    st.write(f"**Mobile:** {user.get('mobile_number', '')}")
+                    st.write(f"**Email:** {user.get('email', '')}")
+
+                    try:
+                        sales_profile_res = (
+                            supabase.table("sales_profiles")
+                            .select("*")
+                            .eq("mobile_number", user.get("mobile_number"))
+                            .execute()
+                        )
+
+                        if sales_profile_res.data:
+                            profile = sales_profile_res.data[0]
+                            st.write(f"**Brand Type:** {profile.get('brand_type', '')}")
+                            st.write(f"**Area:** {profile.get('area', '')}")
+                            st.write(f"**Designation:** {profile.get('designation', '')}")
+                    except Exception:
+                        pass
+            else:
+                st.info("No sales persons found.")
+
+        except Exception as e:
+            st.error(f"Could not load sales persons: {e}")
+
+    # -------------------- TAB 3: CLASS STATUS / APPROVE / REJECT / ASSIGN --------------------
     with tab3:
-        st.info("Approve / reject classes yahan hoga.")
+        st.subheader("Class Status")
 
+        try:
+            pending_res = (
+                supabase.table("bookings")
+                .select("*")
+                .in_("status", ["pending", "approved"])
+                .order("created_at", desc=True)
+                .execute()
+            )
+
+            if pending_res.data:
+                resource_res = (
+                    supabase.table("resource_profiles")
+                    .select("*")
+                    .execute()
+                )
+
+                resource_options = {}
+                if resource_res.data:
+                    for rp in resource_res.data:
+                        label = (
+                            f"{rp.get('mobile_number', '')} | "
+                            f"{rp.get('subject_1', '')}, "
+                            f"{rp.get('subject_2', '')}, "
+                            f"{rp.get('subject_3', '')}"
+                        )
+                        resource_options[label] = rp.get("mobile_number")
+
+                for booking in pending_res.data:
+                    st.markdown("---")
+                    st.write(f"**Booking ID:** {booking.get('id', '')}")
+                    st.write(f"**Session Type:** {booking.get('session_type', '')}")
+                    st.write(f"**School Name:** {booking.get('school_name', '')}")
+                    st.write(f"**Subject:** {booking.get('subject', '')}")
+                    st.write(f"**Preferred Date:** {booking.get('preferred_date', '')}")
+                    st.write(f"**Preferred Time Slot:** {booking.get('preferred_time_slot', '')}")
+                    st.write(f"**Current Status:** {booking.get('status', '')}")
+
+                    current_session_type = booking.get("session_type", "")
+                    booking_id = booking.get("id")
+
+                    if resource_options:
+                        selected_rp_label = st.selectbox(
+                            f"Assign Resource Person for booking {booking_id}",
+                            options=list(resource_options.keys()),
+                            key=f"rp_select_{booking_id}"
+                        )
+                    else:
+                        selected_rp_label = None
+                        st.warning("No resource persons found.")
+
+                    col1, col2, col3 = st.columns(3)
+
+                    with col1:
+                        if st.button("Approve", key=f"approve_{booking_id}", use_container_width=True):
+                            try:
+                                update_data = {
+                                    "status": "approved"
+                                }
+
+                                # Live class / Product training -> assign from selected RP
+                                # AVRD / Workshop -> manual RP allocation bhi yahi selectbox se
+                                if selected_rp_label:
+                                    update_data["resource_person_number"] = resource_options[selected_rp_label]
+                                    update_data["status"] = "rp_assigned"
+
+                                supabase.table("bookings").update(update_data).eq("id", booking_id).execute()
+                                st.success(f"Booking {booking_id} approved successfully.")
+                                st.rerun()
+
+                            except Exception as e:
+                                st.error(f"Approve failed: {e}")
+
+                    with col2:
+                        if st.button("Reject", key=f"reject_{booking_id}", use_container_width=True):
+                            try:
+                                supabase.table("bookings").update({
+                                    "status": "rejected"
+                                }).eq("id", booking_id).execute()
+
+                                st.success(f"Booking {booking_id} rejected successfully.")
+                                st.rerun()
+
+                            except Exception as e:
+                                st.error(f"Reject failed: {e}")
+
+                    with col3:
+                        if st.button("Assign RP Only", key=f"assign_{booking_id}", use_container_width=True):
+                            try:
+                                if not selected_rp_label:
+                                    st.error("Please select a resource person.")
+                                else:
+                                    assigned_number = resource_options[selected_rp_label]
+
+                                    supabase.table("bookings").update({
+                                        "resource_person_number": assigned_number,
+                                        "status": "rp_assigned"
+                                    }).eq("id", booking_id).execute()
+
+                                    st.success(f"RP assigned successfully for booking {booking_id}.")
+                                    st.rerun()
+
+                            except Exception as e:
+                                st.error(f"RP assignment failed: {e}")
+            else:
+                st.info("No pending or approved bookings found.")
+
+        except Exception as e:
+            st.error(f"Could not load class status section: {e}")
+
+    # -------------------- TAB 4: RESOURCE PERSON MANAGE --------------------
     with tab4:
-        st.info("Resource persons manage yahan hoga.")
+        st.subheader("Resource Person Manage")
 
+        try:
+            rp_users_res = (
+                supabase.table("users")
+                .select("*")
+                .eq("role", "resource")
+                .order("created_at", desc=True)
+                .execute()
+            )
+
+            if rp_users_res.data:
+                for user in rp_users_res.data:
+                    st.markdown("---")
+                    st.write(f"**Name:** {user.get('name', '')}")
+                    st.write(f"**Mobile:** {user.get('mobile_number', '')}")
+                    st.write(f"**Email:** {user.get('email', '')}")
+
+                    try:
+                        rp_profile_res = (
+                            supabase.table("resource_profiles")
+                            .select("*")
+                            .eq("mobile_number", user.get("mobile_number"))
+                            .execute()
+                        )
+
+                        if rp_profile_res.data:
+                            profile = rp_profile_res.data[0]
+                            st.write(f"**Subject 1:** {profile.get('subject_1', '')}")
+                            st.write(f"**Subject 2:** {profile.get('subject_2', '')}")
+                            st.write(f"**Subject 3:** {profile.get('subject_3', '')}")
+                    except Exception:
+                        pass
+            else:
+                st.info("No resource persons found.")
+
+        except Exception as e:
+            st.error(f"Could not load resource persons: {e}")
+
+    # -------------------- TAB 5: FEEDBACK --------------------
     with tab5:
-        st.info("Feedback yahan dikhengi.")
+        st.subheader("Feedback")
 
+        st.markdown("### Sales Feedback")
+        try:
+            sales_feedback_res = (
+                supabase.table("feedback_sales")
+                .select("*")
+                .order("created_at", desc=True)
+                .execute()
+            )
+
+            if sales_feedback_res.data:
+                for fb in sales_feedback_res.data:
+                    st.markdown("---")
+                    st.write(f"**Booking ID:** {fb.get('booking_id', '')}")
+                    st.write(f"**Sales Person Number:** {fb.get('sales_person_number', '')}")
+                    st.write(f"**Feedback:** {fb.get('feedback_text', '')}")
+                    st.write(f"**Created At:** {fb.get('created_at', '')}")
+            else:
+                st.info("No sales feedback found.")
+
+        except Exception as e:
+            st.error(f"Could not load sales feedback: {e}")
+
+        st.markdown("### Resource Feedback")
+        try:
+            resource_feedback_res = (
+                supabase.table("feedback_resource")
+                .select("*")
+                .order("created_at", desc=True)
+                .execute()
+            )
+
+            if resource_feedback_res.data:
+                for fb in resource_feedback_res.data:
+                    st.markdown("---")
+                    st.write(f"**Booking ID:** {fb.get('booking_id', '')}")
+                    st.write(f"**Resource Person Number:** {fb.get('resource_person_number', '')}")
+                    st.write(f"**Feedback:** {fb.get('feedback_text', '')}")
+                    st.write(f"**Remark:** {fb.get('remark_text', '')}")
+                    st.write(f"**Created At:** {fb.get('created_at', '')}")
+            else:
+                st.info("No resource feedback found.")
+
+        except Exception as e:
+            st.error(f"Could not load resource feedback: {e}")
+
+    # -------------------- TAB 6: REPORTS --------------------
     with tab6:
-        st.info("Reports yahan dikhengi.")
+        st.subheader("Reports")
 
+        try:
+            all_bookings = supabase.table("bookings").select("*").execute()
+            sales_feedback = supabase.table("feedback_sales").select("*").execute()
+            resource_feedback = supabase.table("feedback_resource").select("*").execute()
+
+            total_bookings = len(all_bookings.data) if all_bookings.data else 0
+            pending_count = len([b for b in all_bookings.data if b.get("status") == "pending"]) if all_bookings.data else 0
+            approved_count = len([b for b in all_bookings.data if b.get("status") in ["approved", "rp_assigned", "zoom_sent"]]) if all_bookings.data else 0
+            completed_count = len([b for b in all_bookings.data if b.get("status") in ["completed", "feedback_pending", "closed"]]) if all_bookings.data else 0
+            rejected_count = len([b for b in all_bookings.data if b.get("status") == "rejected"]) if all_bookings.data else 0
+
+            sales_feedback_count = len(sales_feedback.data) if sales_feedback.data else 0
+            resource_feedback_count = len(resource_feedback.data) if resource_feedback.data else 0
+
+            st.metric("Total Bookings", total_bookings)
+            st.metric("Pending Bookings", pending_count)
+            st.metric("Approved / Assigned", approved_count)
+            st.metric("Completed Bookings", completed_count)
+            st.metric("Rejected Bookings", rejected_count)
+            st.metric("Sales Feedback Count", sales_feedback_count)
+            st.metric("Resource Feedback Count", resource_feedback_count)
+
+        except Exception as e:
+            st.error(f"Could not load reports: {e}")
+
+    st.markdown("---")
     if st.button("Logout"):
         logout()
-
 
 # ---------- router ----------
 page = st.session_state.page
