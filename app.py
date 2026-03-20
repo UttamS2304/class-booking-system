@@ -4,6 +4,7 @@ from datetime import datetime
 import smtplib
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
+from datetime import datetime, timedelta
 
 st.set_page_config(page_title="Class Booking System", layout="wide")
 
@@ -334,48 +335,105 @@ def show_sales_dashboard():
         "Add Feedback"
     ])
 
-    # -------------------- TAB 1: BOOK CLASS --------------------
+       # -------------------- TAB 1: BOOK CLASS --------------------
     with tab1:
         st.subheader("Book a Class")
 
+        subject_options = [
+            "Mathematics",
+            "Hindi",
+            "English",
+            "Hindi Vyakaran",
+            "English Grammar",
+            "Science",
+            "Social Science",
+            "Computer",
+            "General Knowledge",
+            "Pre Primary",
+            "Pre Primary Hindi",
+            "Environment Science"
+        ]
+
+        session_options = {
+            "Live Class (45 mins)": "live_class",
+            "Product Training (45 mins)": "product_training",
+            "AVRD Session (1 hour)": "avrd",
+            "Workshop (2 hours)": "workshop"
+        }
+
+        min_booking_date = datetime.today().date() + timedelta(days=1)
+
         with st.form("booking_form"):
-            session_options = {
-                "Live Class (45 mins)": "live_class",
-                "Product Training (45 mins)": "product_training",
-                "AVRD Session (1 hour)": "avrd",
-                "Workshop (2 hours)": "workshop"
-}
-
             selected_session_label = st.selectbox(
-                "Session Type",
-            list(session_options.keys())
-)
-
+                "Select Session Type",
+                list(session_options.keys())
+            )
             session_type = session_options[selected_session_label]
 
-            school_name = st.text_input("School Name")
+            school_name = st.text_input("Name of School")
             school_grade = st.text_input("School Grade")
 
             subject = ""
             class_standard = ""
 
             if session_type in ["live_class", "product_training"]:
-                subject = st.text_input("Subject")
+                subject = st.selectbox("Subject", ["Select Subject"] + subject_options)
 
             if session_type == "live_class":
                 class_standard = st.text_input("Class / Standard")
 
-            preferred_date = st.date_input("Preferred Date")
+            preferred_date = st.date_input(
+                "Preferred Date",
+                min_value=min_booking_date
+            )
+
             preferred_time = st.text_input("Preferred Time Slot")
             curriculum = st.text_input("Curriculum")
-            book_title = st.text_input("Book Title")
+            book_title = st.text_input("Title of Book(s) Used")
             area = st.text_input("Area / Location")
 
             submitted = st.form_submit_button("Submit Booking", use_container_width=True)
 
         if submitted:
+            # -------- validations --------
+            if not school_name.strip():
+                st.error("Please enter school name.")
+                return
+
+            if not school_grade.strip():
+                st.error("Please enter school grade.")
+                return
+
+            if session_type in ["live_class", "product_training"] and subject == "Select Subject":
+                st.error("Please select a subject.")
+                return
+
+            if session_type == "live_class" and not class_standard.strip():
+                st.error("Please enter class / standard.")
+                return
+
+            if preferred_date <= datetime.today().date():
+                st.error("Booking can only be made at least one day in advance.")
+                return
+
+            if not preferred_time.strip():
+                st.error("Please enter preferred time slot.")
+                return
+
+            if not curriculum.strip():
+                st.error("Please enter curriculum.")
+                return
+
+            if not book_title.strip():
+                st.error("Please enter book title.")
+                return
+
+            if not area.strip():
+                st.error("Please enter area / location.")
+                return
+
             try:
-                # sales person brand dynamically nikalna
+                # sales person brand dynamically fetch karna
                 brand_res = (
                     supabase.table("sales_profiles")
                     .select("brand_type")
@@ -405,15 +463,15 @@ def show_sales_dashboard():
                     "brand_type": brand_type,
                     "session_type": session_type,
                     "duration_minutes": duration_minutes,
-                    "school_name": school_name,
-                    "school_grade": school_grade,
-                    "subject": subject if subject else None,
-                    "class_standard": class_standard if class_standard else None,
+                    "school_name": school_name.strip(),
+                    "school_grade": school_grade.strip(),
+                    "subject": subject if session_type in ["live_class", "product_training"] else None,
+                    "class_standard": class_standard.strip() if session_type == "live_class" else None,
                     "preferred_date": str(preferred_date),
-                    "preferred_time_slot": preferred_time,
-                    "curriculum": curriculum,
-                    "book_title": book_title,
-                    "area_location": area,
+                    "preferred_time_slot": preferred_time.strip(),
+                    "curriculum": curriculum.strip(),
+                    "book_title": book_title.strip(),
+                    "area_location": area.strip(),
                     "status": "pending"
                 }
 
@@ -422,7 +480,6 @@ def show_sales_dashboard():
 
             except Exception as e:
                 st.error(f"Booking failed: {e}")
-
     # -------------------- TAB 2: CLASS STATUS --------------------
     with tab2:
         st.subheader("Class Status")
