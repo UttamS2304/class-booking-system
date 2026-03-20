@@ -150,7 +150,7 @@ def show_sales_register():
     st.markdown("---")
 
     with st.form("sales_registration_form"):
-       brand_options = {
+        brand_options = {
             "Creative Kids": "creative_kids",
             "Little Genius": "little_genius"
 }
