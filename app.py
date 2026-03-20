@@ -234,18 +234,23 @@ def show_resource_register():
     "General Knowledge",
     "Pre Primary",
     "Pre Primary Hindi",
-    "Environmental Science"
+    "Environment Science"
 ]
 
     with st.form("resource_registration_form"):
         name = st.text_input("Name")
         mobile = st.text_input("Mobile Number")
         email = st.text_input("Email")
-        subject_1 = st.selectbox("Subject 1", subject_options)
-        subject_2_options = [s for s in subject_options if s != subject_1]
-        subject_2 = st.selectbox("Subject 2", subject_2_options)
-        subject_3_options = [s for s in subject_options if s not in [subject_1, subject_2]]
-        subject_3 = st.selectbox("Subject 3", subject_3_options)        
+        # Subject 1 (mandatory)
+        subject_1 = st.selectbox("Subject 1 *", ["Select Subject"] + subject_options)
+        # Subject 2 (optional)
+        subject_2_options = ["None"] + [s for s in subject_options if s != subject_1]
+        subject_2 = st.selectbox("Subject 2 (Optional)", subject_2_options)
+        # Subject 3 (optional)
+        subject_3_options = ["None"] + [
+            s for s in subject_options if s not in [subject_1, subject_2]
+]
+        subject_3 = st.selectbox("Subject 3 (Optional)", subject_3_options)        
         password = st.text_input("Password", type="password")
 
         submitted = st.form_submit_button("Register", use_container_width=True)
