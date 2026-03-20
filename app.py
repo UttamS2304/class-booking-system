@@ -223,22 +223,29 @@ def show_resource_register():
 
     # Placeholder subjects; baad me final list replace kar dena
     subject_options = [
-        "Math",
-        "Science",
-        "English",
-        "EVS",
-        "GK",
-        "Hindi",
-        "Computer"
-    ]
+    "Mathematics",
+    "Hindi",
+    "English",
+    "Hindi Vyakaran",
+    "English Grammar",
+    "Science",
+    "Social Science",
+    "Computer",
+    "General Knowledge",
+    "Pre Primary",
+    "Pre Primary Hindi",
+    "Environmental Science"
+]
 
     with st.form("resource_registration_form"):
         name = st.text_input("Name")
         mobile = st.text_input("Mobile Number")
         email = st.text_input("Email")
         subject_1 = st.selectbox("Subject 1", subject_options)
-        subject_2 = st.selectbox("Subject 2", subject_options, index=1 if len(subject_options) > 1 else 0)
-        subject_3 = st.selectbox("Subject 3", subject_options, index=2 if len(subject_options) > 2 else 0)
+        subject_2_options = [s for s in subject_options if s != subject_1]
+        subject_2 = st.selectbox("Subject 2", subject_2_options)
+        subject_3_options = [s for s in subject_options if s not in [subject_1, subject_2]]
+        subject_3 = st.selectbox("Subject 3", subject_3_options)        
         password = st.text_input("Password", type="password")
 
         submitted = st.form_submit_button("Register", use_container_width=True)
