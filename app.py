@@ -150,7 +150,17 @@ def show_sales_register():
     st.markdown("---")
 
     with st.form("sales_registration_form"):
-        brand = st.selectbox("Select Brand", ["creative_kids", "little_genius"])
+       brand_options = {
+    "Creative Kids": "creative_kids",
+    "Little Genius": "little_genius"
+}
+
+selected_brand_label = st.selectbox(
+    "Select Brand",
+    list(brand_options.keys())
+)
+
+brand = brand_options[selected_brand_label]
         name = st.text_input("Name")
         mobile = st.text_input("Mobile Number")
         email = st.text_input("Email")
