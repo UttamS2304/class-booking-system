@@ -4,6 +4,7 @@ from datetime import datetime, timedelta
 import smtplib
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
+import pandas as pd
 
 st.set_page_config(page_title="Class Booking System", layout="wide")
 
@@ -1499,31 +1500,135 @@ def show_admin_dashboard():
 
         except Exception as e:
             st.error(f"Could not load resource feedback: {e}")
-    # -------------------- TAB 6: REPORTS --------------------
+        # -------------------- TAB 6: REPORTS --------------------
     with tab6:
         st.subheader("Reports")
 
         try:
-            all_bookings = supabase.table("bookings").select("*").execute()
-            sales_feedback = supabase.table("feedback_sales").select("*").execute()
-            resource_feedback = supabase.table("feedback_resource").select("*").execute()
+            all_bookings_res = supabase.table("bookings").select("*").execute()
+            sales_feedback_res = supabase.table("feedback_sales").select("*").execute()
+            resource_feedback_res = supabase.table("feedback_resource").select("*").execute()
 
-            total_bookings = len(all_bookings.data) if all_bookings.data else 0
-            pending_count = len([b for b in all_bookings.data if b.get("status") == "pending"]) if all_bookings.data else 0
-            approved_count = len([b for b in all_bookings.data if b.get("status") in ["approved", "rp_assigned", "zoom_sent"]]) if all_bookings.data else 0
-            completed_count = len([b for b in all_bookings.data if b.get("status") in ["completed", "feedback_pending", "closed"]]) if all_bookings.data else 0
-            rejected_count = len([b for b in all_bookings.data if b.get("status") == "rejected"]) if all_bookings.data else 0
+            all_bookings = all_bookings_res.data if all_bookings_res.data else []
+            sales_feedback = sales_feedback_res.data if sales_feedback_res.data else []
+            resource_feedback = resource_feedback_res.data if resource_feedback_res.data else []
 
-            sales_feedback_count = len(sales_feedback.data) if sales_feedback.data else 0
-            resource_feedback_count = len(resource_feedback.data) if resource_feedback.data else 0
+            total_bookings = len(all_bookings)
+            pending_count = len([b for b in all_bookings if b.get("status") == "pending"])
+            approved_count = len([b for b in all_bookings if b.get("status") in ["approved", "rp_assigned", "zoom_sent"]])
+            completed_count = len([b for b in all_bookings if b.get("status") in ["completed", "feedback_pending", "closed"]])
+            rejected_count = len([b for b in all_bookings if b.get("status") == "rejected"])
 
-            st.metric("Total Bookings", total_bookings)
-            st.metric("Pending Bookings", pending_count)
-            st.metric("Approved / Assigned", approved_count)
-            st.metric("Completed Bookings", completed_count)
-            st.metric("Rejected Bookings", rejected_count)
-            st.metric("Sales Feedback Count", sales_feedback_count)
-            st.metric("Resource Feedback Count", resource_feedback_count)
+            sales_feedback_count = len(sales_feedback)
+            resource_feedback_count = len(resource_feedback)
+
+            sales_ratings = [fb.get("session_rating") for fb in sales_feedback if fb.get("session_rating") is not None]
+            resource_ratings = [fb.get("session_rating") for fb in resource_feedback if fb.get("session_rating") is not None]
+
+            avg_sales_rating = round(sum(sales_ratings) / len(sales_ratings), 2) if sales_ratings else 0
+            avg_resource_rating = round(sum(resource_ratings) / len(resource_ratings), 2) if resource_ratings else 0
+
+            st.markdown("### Overall Summary")
+
+            col1, col2, col3 = st.columns(3)
+            with col1:
+                st.metric("Total Bookings", total_bookings)
+                st.metric("Pending Bookings", pending_count)
+                st.metric("Approved / Assigned", approved_count)
+
+            with col2:
+                st.metric("Completed Bookings", completed_count)
+                st.metric("Rejected Bookings", rejected_count)
+                st.metric("Sales Feedback Count", sales_feedback_count)
+
+            with col3:
+                st.metric("Resource Feedback Count", resource_feedback_count)
+                st.metric("Average Sales Rating", avg_sales_rating)
+                st.metric("Average Resource Rating", avg_resource_rating)
+
+            st.markdown("### Daily Class Report")
+
+            if all_bookings:
+                daily_summary = {}
+
+                sales_feedback_map = {}
+                for fb in sales_feedback:
+                    booking_id = fb.get("booking_id")
+                    if booking_id:
+                        sales_feedback_map[booking_id] = fb.get("session_rating")
+
+                resource_feedback_map = {}
+                for fb in resource_feedback:
+                    booking_id = fb.get("booking_id")
+                    if booking_id:
+                        resource_feedback_map[booking_id] = fb.get("session_rating")
+
+                for booking in all_bookings:
+                    booking_date = booking.get("preferred_date", "Unknown Date")
+
+                    if booking_date not in daily_summary:
+                        daily_summary[booking_date] = {
+                            "Date": booking_date,
+                            "Total Classes": 0,
+                            "Pending": 0,
+                            "Approved / Assigned": 0,
+                            "Completed": 0,
+                            "Rejected": 0,
+                            "Sales Ratings": [],
+                            "Resource Ratings": []
+                        }
+
+                    daily_summary[booking_date]["Total Classes"] += 1
+
+                    status = booking.get("status", "")
+                    if status == "pending":
+                        daily_summary[booking_date]["Pending"] += 1
+                    elif status in ["approved", "rp_assigned", "zoom_sent"]:
+                        daily_summary[booking_date]["Approved / Assigned"] += 1
+                    elif status in ["completed", "feedback_pending", "closed"]:
+                        daily_summary[booking_date]["Completed"] += 1
+                    elif status == "rejected":
+                        daily_summary[booking_date]["Rejected"] += 1
+
+                    booking_id = booking.get("id")
+
+                    if booking_id in sales_feedback_map and sales_feedback_map[booking_id] is not None:
+                        daily_summary[booking_date]["Sales Ratings"].append(sales_feedback_map[booking_id])
+
+                    if booking_id in resource_feedback_map and resource_feedback_map[booking_id] is not None:
+                        daily_summary[booking_date]["Resource Ratings"].append(resource_feedback_map[booking_id])
+
+                report_rows = []
+                for _, data in daily_summary.items():
+                    avg_sales = round(sum(data["Sales Ratings"]) / len(data["Sales Ratings"]), 2) if data["Sales Ratings"] else 0
+                    avg_resource = round(sum(data["Resource Ratings"]) / len(data["Resource Ratings"]), 2) if data["Resource Ratings"] else 0
+
+                    report_rows.append({
+                        "Date": data["Date"],
+                        "Total Classes": data["Total Classes"],
+                        "Pending": data["Pending"],
+                        "Approved / Assigned": data["Approved / Assigned"],
+                        "Completed": data["Completed"],
+                        "Rejected": data["Rejected"],
+                        "Average Sales Rating": avg_sales,
+                        "Average Resource Rating": avg_resource
+                    })
+
+                report_rows = sorted(report_rows, key=lambda x: x["Date"], reverse=True)
+
+                report_df = pd.DataFrame(report_rows)
+                st.dataframe(report_df, use_container_width=True, hide_index=True)
+
+                csv_data = report_df.to_csv(index=False).encode("utf-8")
+
+                st.download_button(
+                    label="Download Daily Report CSV",
+                    data=csv_data,
+                    file_name="daily_class_report.csv",
+                    mime="text/csv"
+                )
+            else:
+                st.info("No booking data available for reports.")
 
         except Exception as e:
             st.error(f"Could not load reports: {e}")
