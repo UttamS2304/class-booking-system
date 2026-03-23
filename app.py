@@ -718,6 +718,286 @@ def show_sales_dashboard():
     st.markdown("---")
     if st.button("Logout"):
         logout()
+def show_resource_dashboard():
+    st.title("Resource Dashboard")
+    st.write(f"Welcome, {st.session_state.user_name}")
+    st.markdown("---")
+
+    tab1, tab2, tab3, tab4 = st.tabs([
+        "Upcoming Classes",
+        "Completed Classes",
+        "Availability",
+        "Add Remark / Feedback"
+    ])
+
+    # -------------------- TAB 1: UPCOMING CLASSES --------------------
+    with tab1:
+        st.subheader("Upcoming Classes")
+
+        try:
+            upcoming_res = (
+                supabase.table("bookings")
+                .select("*")
+                .eq("resource_person_number", st.session_state.user_mobile)
+                .in_("status", ["approved", "rp_assigned", "zoom_sent"])
+                .order("preferred_date", desc=False)
+                .execute()
+            )
+
+            if upcoming_res.data:
+                session_display_map = {
+                    "live_class": "Live Class",
+                    "product_training": "Product Training",
+                    "avrd": "AVRD Session",
+                    "workshop": "Workshop"
+                }
+
+                status_display_map = {
+                    "pending": "Pending",
+                    "approved": "Approved",
+                    "rp_assigned": "RP Assigned",
+                    "zoom_sent": "Zoom Link Sent",
+                    "completed": "Completed",
+                    "feedback_pending": "Feedback Pending",
+                    "closed": "Closed",
+                    "rejected": "Rejected"
+                }
+
+                table_data = []
+                for booking in upcoming_res.data:
+                    table_data.append({
+                        "Session Type": session_display_map.get(booking.get("session_type"), booking.get("session_type", "")),
+                        "School Name": booking.get("school_name", ""),
+                        "School Grade": booking.get("school_grade", ""),
+                        "Subject": booking.get("subject", ""),
+                        "Class / Standard": booking.get("class_standard", ""),
+                        "Preferred Date": booking.get("preferred_date", ""),
+                        "Preferred Time Slot": booking.get("preferred_time_slot", ""),
+                        "Curriculum": booking.get("curriculum", ""),
+                        "Book Title": booking.get("book_title", ""),
+                        "Area / Location": booking.get("area_location", ""),
+                        "Status": status_display_map.get(booking.get("status"), booking.get("status", "")),
+                        "Zoom Link": booking.get("zoom_link", "")
+                    })
+
+                st.dataframe(table_data, use_container_width=True, hide_index=True)
+            else:
+                st.info("No upcoming classes found.")
+
+        except Exception as e:
+            st.error(f"Could not load upcoming classes: {e}")
+
+    # -------------------- TAB 2: COMPLETED CLASSES --------------------
+    with tab2:
+        st.subheader("Completed Classes with Sales Feedback")
+
+        try:
+            completed_res = (
+                supabase.table("bookings")
+                .select("*")
+                .eq("resource_person_number", st.session_state.user_mobile)
+                .in_("status", ["completed", "feedback_pending", "closed"])
+                .order("preferred_date", desc=True)
+                .execute()
+            )
+
+            if completed_res.data:
+                session_display_map = {
+                    "live_class": "Live Class",
+                    "product_training": "Product Training",
+                    "avrd": "AVRD Session",
+                    "workshop": "Workshop"
+                }
+
+                status_display_map = {
+                    "pending": "Pending",
+                    "approved": "Approved",
+                    "rp_assigned": "RP Assigned",
+                    "zoom_sent": "Zoom Link Sent",
+                    "completed": "Completed",
+                    "feedback_pending": "Feedback Pending",
+                    "closed": "Closed",
+                    "rejected": "Rejected"
+                }
+
+                table_data = []
+
+                for booking in completed_res.data:
+                    sales_rating = ""
+                    sales_feedback = ""
+
+                    try:
+                        sales_feedback_res = (
+                            supabase.table("feedback_sales")
+                            .select("*")
+                            .eq("booking_id", booking["id"])
+                            .execute()
+                        )
+
+                        if sales_feedback_res.data:
+                            sales_fb = sales_feedback_res.data[0]
+                            sales_rating = sales_fb.get("session_rating", "")
+                            sales_feedback = sales_fb.get("feedback_text", "")
+                    except Exception:
+                        pass
+
+                    table_data.append({
+                        "Session Type": session_display_map.get(booking.get("session_type"), booking.get("session_type", "")),
+                        "School Name": booking.get("school_name", ""),
+                        "Preferred Date": booking.get("preferred_date", ""),
+                        "Preferred Time Slot": booking.get("preferred_time_slot", ""),
+                        "Status": status_display_map.get(booking.get("status"), booking.get("status", "")),
+                        "Sales Rating": sales_rating,
+                        "Sales Feedback": sales_feedback
+                    })
+
+                st.dataframe(table_data, use_container_width=True, hide_index=True)
+            else:
+                st.info("No completed classes found.")
+
+        except Exception as e:
+            st.error(f"Could not load completed classes: {e}")
+
+    # -------------------- TAB 3: AVAILABILITY --------------------
+    with tab3:
+        st.subheader("Mark Availability / Unavailability")
+
+        with st.form("availability_form"):
+            availability_date = st.date_input("Date")
+            start_time = st.time_input("Start Time")
+            end_time = st.time_input("End Time")
+            availability_type = st.selectbox("Type", ["available", "unavailable"])
+            notes = st.text_area("Notes")
+
+            availability_submitted = st.form_submit_button("Save Availability", use_container_width=True)
+
+        if availability_submitted:
+            try:
+                availability_data = {
+                    "resource_person_number": st.session_state.user_mobile,
+                    "date": str(availability_date),
+                    "start_time": str(start_time),
+                    "end_time": str(end_time),
+                    "type": availability_type,
+                    "notes": notes
+                }
+
+                supabase.table("resource_availability").insert(availability_data).execute()
+                st.success("Availability saved successfully.")
+                st.rerun()
+            except Exception as e:
+                st.error(f"Could not save availability: {e}")
+
+        st.markdown("### Your Availability Records")
+
+        try:
+            availability_res = (
+                supabase.table("resource_availability")
+                .select("*")
+                .eq("resource_person_number", st.session_state.user_mobile)
+                .order("date", desc=True)
+                .execute()
+            )
+
+            if availability_res.data:
+                availability_table = []
+                for item in availability_res.data:
+                    availability_table.append({
+                        "Date": item.get("date", ""),
+                        "Start Time": item.get("start_time", ""),
+                        "End Time": item.get("end_time", ""),
+                        "Type": item.get("type", ""),
+                        "Notes": item.get("notes", "")
+                    })
+
+                st.dataframe(availability_table, use_container_width=True, hide_index=True)
+            else:
+                st.info("No availability records found.")
+
+        except Exception as e:
+            st.error(f"Could not load availability records: {e}")
+
+    # -------------------- TAB 4: ADD REMARK / FEEDBACK --------------------
+    with tab4:
+        st.subheader("Add Remark / Feedback")
+
+        try:
+            remark_booking_res = (
+                supabase.table("bookings")
+                .select("*")
+                .eq("resource_person_number", st.session_state.user_mobile)
+                .in_("status", ["completed", "feedback_pending", "closed"])
+                .order("preferred_date", desc=True)
+                .execute()
+            )
+
+            if remark_booking_res.data:
+                booking_options = {
+                    f"{b.get('school_name', '')} | {b.get('preferred_date', '')} | {b.get('preferred_time_slot', '')}": b["id"]
+                    for b in remark_booking_res.data
+                }
+
+                selected_booking_label = st.selectbox(
+                    "Select Booking",
+                    list(booking_options.keys())
+                )
+
+                rating_options = {
+                    "⭐ 1": 1,
+                    "⭐⭐ 2": 2,
+                    "⭐⭐⭐ 3": 3,
+                    "⭐⭐⭐⭐ 4": 4,
+                    "⭐⭐⭐⭐⭐ 5": 5
+                }
+
+                selected_rating_label = st.selectbox(
+                    "Rating of the Session",
+                    list(rating_options.keys())
+                )
+                session_rating = rating_options[selected_rating_label]
+
+                feedback_text = st.text_area("Feedback (Optional)")
+                remark_text = st.text_area("Remark (Optional)")
+
+                if st.button("Submit Remark / Feedback", use_container_width=True):
+                    selected_booking_id = booking_options[selected_booking_label]
+
+                    try:
+                        existing_feedback_res = (
+                            supabase.table("feedback_resource")
+                            .select("*")
+                            .eq("booking_id", selected_booking_id)
+                            .eq("resource_person_number", st.session_state.user_mobile)
+                            .execute()
+                        )
+
+                        if existing_feedback_res.data:
+                            st.error("Feedback for this booking has already been submitted.")
+                            st.stop()
+
+                        feedback_data = {
+                            "booking_id": selected_booking_id,
+                            "resource_person_number": st.session_state.user_mobile,
+                            "session_rating": session_rating,
+                            "feedback_text": feedback_text.strip() if feedback_text.strip() else None,
+                            "remark_text": remark_text.strip() if remark_text.strip() else None
+                        }
+
+                        supabase.table("feedback_resource").insert(feedback_data).execute()
+                        st.success("Remark / feedback submitted successfully.")
+                        st.rerun()
+
+                    except Exception as e:
+                        st.error(f"Submission failed: {e}")
+            else:
+                st.info("No completed classes available for remarks.")
+
+        except Exception as e:
+            st.error(f"Could not load remark section: {e}")
+
+    st.markdown("---")
+    if st.button("Logout"):
+        logout()
 def show_admin_dashboard():
     st.title("Admin Dashboard")
     st.write(f"Welcome, {st.session_state.user_name}")
