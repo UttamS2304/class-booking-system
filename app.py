@@ -387,154 +387,155 @@ def show_sales_dashboard():
     ])
 
     # -------------------- TAB 1: BOOK CLASS --------------------
-with tab1:
-    st.subheader("Book a Class")
+    with tab1:
+        st.subheader("Book a Class")
 
-    subject_options = [
-        "Mathematics",
-        "Hindi",
-        "English",
-        "Hindi Vyakaran",
-        "English Grammar",
-        "Science",
-        "Social Science",
-        "Computer",
-        "General Knowledge",
-        "Pre Primary",
-        "Pre Primary Hindi",
-        "Environment Science"
-    ]
+        subject_options = [
+            "Mathematics",
+            "Hindi",
+            "English",
+            "Hindi Vyakaran",
+            "English Grammar",
+            "Science",
+            "Social Science",
+            "Computer",
+            "General Knowledge",
+            "Pre Primary",
+            "Pre Primary Hindi",
+            "Environment Science"
+        ]
 
-    session_options = {
-        "Live Class (45 mins)": "live_class",
-        "Product Training (45 mins)": "product_training",
-        "AVRD Session (1 hour)": "avrd",
-        "Workshop (2 hours)": "workshop"
-    }
+        session_options = {
+            "Live Class (45 mins)": "live_class",
+            "Product Training (45 mins)": "product_training",
+            "AVRD Session (1 hour)": "avrd",
+            "Workshop (2 hours)": "workshop"
+        }
 
-    min_booking_date = datetime.today().date() + timedelta(days=1)
+        min_booking_date = datetime.today().date() + timedelta(days=1)
 
-    # session type outside form
-    selected_session_label = st.selectbox(
-        "Select Session Type",
-        list(session_options.keys())
-    )
-    session_type = session_options[selected_session_label]
-
-    time_slot_options = get_time_slots(session_type)
-
-    with st.form("booking_form"):
-        school_name = st.text_input("Name of School")
-        school_grade = st.text_input("School Grade")
-
-        subject = ""
-        class_standard = ""
-
-        if session_type in ["live_class", "product_training"]:
-            subject = st.selectbox("Subject", ["Select Subject"] + subject_options)
-
-        if session_type == "live_class":
-            class_standard = st.text_input("Class / Standard")
-
-        preferred_date = st.date_input(
-            "Preferred Date",
-            min_value=min_booking_date
+        selected_session_label = st.selectbox(
+            "Select Session Type",
+            list(session_options.keys()),
+            key="sales_session_type"
         )
+        session_type = session_options[selected_session_label]
 
-        preferred_time = st.selectbox(
-            "Preferred Time Slot",
-            ["Select Time Slot"] + time_slot_options
-        )
+        time_slot_options = get_time_slots(session_type)
 
-        curriculum = st.text_input("Curriculum")
-        book_title = st.text_input("Title of Book(s) Used")
-        area = st.text_input("Area / Location")
+        with st.form("booking_form"):
+            school_name = st.text_input("Name of School")
+            school_grade = st.text_input("School Grade")
 
-        submitted = st.form_submit_button("Submit Booking", use_container_width=True)
+            subject = ""
+            class_standard = ""
 
-    if submitted:
-        if not school_name.strip():
-            st.error("Please enter school name.")
-            st.stop()
-
-        if not school_grade.strip():
-            st.error("Please enter school grade.")
-            st.stop()
-
-        if session_type in ["live_class", "product_training"] and subject == "Select Subject":
-            st.error("Please select a subject.")
-            st.stop()
-
-        if session_type == "live_class" and not class_standard.strip():
-            st.error("Please enter class / standard.")
-            st.stop()
-
-        if preferred_date <= datetime.today().date():
-            st.error("Booking can only be made at least one day in advance.")
-            st.stop()
-
-        if preferred_time == "Select Time Slot":
-            st.error("Please select a preferred time slot.")
-            st.stop()
-
-        if not curriculum.strip():
-            st.error("Please enter curriculum.")
-            st.stop()
-
-        if not book_title.strip():
-            st.error("Please enter book title.")
-            st.stop()
-
-        if not area.strip():
-            st.error("Please enter area / location.")
-            st.stop()
-
-        try:
-            brand_res = (
-                supabase.table("sales_profiles")
-                .select("brand_type")
-                .eq("mobile_number", st.session_state.user_mobile)
-                .execute()
-            )
-
-            brand_type = "creative_kids"
-            if brand_res.data and len(brand_res.data) > 0:
-                brand_type = brand_res.data[0]["brand_type"]
+            if session_type in ["live_class", "product_training"]:
+                subject = st.selectbox("Subject", ["Select Subject"] + subject_options)
 
             if session_type == "live_class":
-                duration_minutes = 45
-            elif session_type == "product_training":
-                duration_minutes = 45
-            elif session_type == "avrd":
-                duration_minutes = 60
-            elif session_type == "workshop":
-                duration_minutes = 120
-            else:
-                duration_minutes = 45
+                class_standard = st.text_input("Class / Standard")
 
-            booking_data = {
-                "sales_person_number": st.session_state.user_mobile,
-                "resource_person_number": None,
-                "brand_type": brand_type,
-                "session_type": session_type,
-                "duration_minutes": duration_minutes,
-                "school_name": school_name.strip(),
-                "school_grade": school_grade.strip(),
-                "subject": subject if session_type in ["live_class", "product_training"] else None,
-                "class_standard": class_standard.strip() if session_type == "live_class" else None,
-                "preferred_date": str(preferred_date),
-                "preferred_time_slot": preferred_time,
-                "curriculum": curriculum.strip(),
-                "book_title": book_title.strip(),
-                "area_location": area.strip(),
-                "status": "pending"
-            }
+            preferred_date = st.date_input(
+                "Preferred Date",
+                min_value=min_booking_date
+            )
 
-            supabase.table("bookings").insert(booking_data).execute()
-            st.success("Class booking request submitted successfully.")
+            preferred_time = st.selectbox(
+                "Preferred Time Slot",
+                ["Select Time Slot"] + time_slot_options
+            )
 
-        except Exception as e:
-            st.error(f"Booking failed: {e}")
+            curriculum = st.text_input("Curriculum")
+            book_title = st.text_input("Title of Book(s) Used")
+            area = st.text_input("Area / Location")
+
+            submitted = st.form_submit_button("Submit Booking", use_container_width=True)
+
+        if submitted:
+            if not school_name.strip():
+                st.error("Please enter school name.")
+                st.stop()
+
+            if not school_grade.strip():
+                st.error("Please enter school grade.")
+                st.stop()
+
+            if session_type in ["live_class", "product_training"] and subject == "Select Subject":
+                st.error("Please select a subject.")
+                st.stop()
+
+            if session_type == "live_class" and not class_standard.strip():
+                st.error("Please enter class / standard.")
+                st.stop()
+
+            if preferred_date <= datetime.today().date():
+                st.error("Booking can only be made at least one day in advance.")
+                st.stop()
+
+            if preferred_time == "Select Time Slot":
+                st.error("Please select a preferred time slot.")
+                st.stop()
+
+            if not curriculum.strip():
+                st.error("Please enter curriculum.")
+                st.stop()
+
+            if not book_title.strip():
+                st.error("Please enter book title.")
+                st.stop()
+
+            if not area.strip():
+                st.error("Please enter area / location.")
+                st.stop()
+
+            try:
+                brand_res = (
+                    supabase.table("sales_profiles")
+                    .select("brand_type")
+                    .eq("mobile_number", st.session_state.user_mobile)
+                    .execute()
+                )
+
+                brand_type = "creative_kids"
+                if brand_res.data and len(brand_res.data) > 0:
+                    brand_type = brand_res.data[0]["brand_type"]
+
+                if session_type == "live_class":
+                    duration_minutes = 45
+                elif session_type == "product_training":
+                    duration_minutes = 45
+                elif session_type == "avrd":
+                    duration_minutes = 60
+                elif session_type == "workshop":
+                    duration_minutes = 120
+                else:
+                    duration_minutes = 45
+
+                booking_data = {
+                    "sales_person_number": st.session_state.user_mobile,
+                    "resource_person_number": None,
+                    "brand_type": brand_type,
+                    "session_type": session_type,
+                    "duration_minutes": duration_minutes,
+                    "school_name": school_name.strip(),
+                    "school_grade": school_grade.strip(),
+                    "subject": subject if session_type in ["live_class", "product_training"] else None,
+                    "class_standard": class_standard.strip() if session_type == "live_class" else None,
+                    "preferred_date": str(preferred_date),
+                    "preferred_time_slot": preferred_time,
+                    "curriculum": curriculum.strip(),
+                    "book_title": book_title.strip(),
+                    "area_location": area.strip(),
+                    "status": "pending"
+                }
+
+                supabase.table("bookings").insert(booking_data).execute()
+                st.success("Class booking request submitted successfully.")
+
+            except Exception as e:
+                st.error(f"Booking failed: {e}")
+
     # -------------------- TAB 2: CLASS STATUS --------------------
     with tab2:
         st.subheader("Class Status")
