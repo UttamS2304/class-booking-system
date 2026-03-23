@@ -826,7 +826,7 @@ def show_admin_dashboard():
 
         except Exception as e:
             st.error(f"Could not load bookings: {e}")
-    # -------------------- TAB 2: SALES PERSONS MANAGE --------------------
+        # -------------------- TAB 2: SALES PERSONS MANAGE --------------------
     with tab2:
         st.subheader("Sales Persons Manage")
 
@@ -840,11 +840,12 @@ def show_admin_dashboard():
             )
 
             if sales_users_res.data:
+                sales_table = []
+
                 for user in sales_users_res.data:
-                    st.markdown("---")
-                    st.write(f"**Name:** {user.get('name', '')}")
-                    st.write(f"**Mobile:** {user.get('mobile_number', '')}")
-                    st.write(f"**Email:** {user.get('email', '')}")
+                    brand_type = ""
+                    area = ""
+                    designation = ""
 
                     try:
                         sales_profile_res = (
@@ -856,17 +857,27 @@ def show_admin_dashboard():
 
                         if sales_profile_res.data:
                             profile = sales_profile_res.data[0]
-                            st.write(f"**Brand Type:** {profile.get('brand_type', '')}")
-                            st.write(f"**Area:** {profile.get('area', '')}")
-                            st.write(f"**Designation:** {profile.get('designation', '')}")
+                            brand_type = get_brand_display_name(profile.get("brand_type", ""))
+                            area = profile.get("area", "")
+                            designation = profile.get("designation", "")
                     except Exception:
                         pass
+
+                    sales_table.append({
+                        "Name": user.get("name", ""),
+                        "Mobile": user.get("mobile_number", ""),
+                        "Email": user.get("email", ""),
+                        "Brand": brand_type,
+                        "Area": area,
+                        "Designation": designation
+                    })
+
+                st.dataframe(sales_table, use_container_width=True, hide_index=True)
             else:
                 st.info("No sales persons found.")
 
         except Exception as e:
             st.error(f"Could not load sales persons: {e}")
-
         # -------------------- TAB 3: CLASS STATUS / APPROVE / REJECT / ASSIGN --------------------
     with tab3:
         st.subheader("Class Status Management")
@@ -1074,7 +1085,7 @@ def show_admin_dashboard():
 
         except Exception as e:
             st.error(f"Could not load class status section: {e}")
-    # -------------------- TAB 4: RESOURCE PERSON MANAGE --------------------
+        # -------------------- TAB 4: RESOURCE PERSON MANAGE --------------------
     with tab4:
         st.subheader("Resource Person Manage")
 
@@ -1088,11 +1099,12 @@ def show_admin_dashboard():
             )
 
             if rp_users_res.data:
+                resource_table = []
+
                 for user in rp_users_res.data:
-                    st.markdown("---")
-                    st.write(f"**Name:** {user.get('name', '')}")
-                    st.write(f"**Mobile:** {user.get('mobile_number', '')}")
-                    st.write(f"**Email:** {user.get('email', '')}")
+                    subject_1 = ""
+                    subject_2 = ""
+                    subject_3 = ""
 
                     try:
                         rp_profile_res = (
@@ -1104,17 +1116,27 @@ def show_admin_dashboard():
 
                         if rp_profile_res.data:
                             profile = rp_profile_res.data[0]
-                            st.write(f"**Subject 1:** {profile.get('subject_1', '')}")
-                            st.write(f"**Subject 2:** {profile.get('subject_2', '')}")
-                            st.write(f"**Subject 3:** {profile.get('subject_3', '')}")
+                            subject_1 = profile.get("subject_1", "")
+                            subject_2 = profile.get("subject_2", "")
+                            subject_3 = profile.get("subject_3", "")
                     except Exception:
                         pass
+
+                    resource_table.append({
+                        "Name": user.get("name", ""),
+                        "Mobile": user.get("mobile_number", ""),
+                        "Email": user.get("email", ""),
+                        "Subject 1": subject_1,
+                        "Subject 2": subject_2,
+                        "Subject 3": subject_3
+                    })
+
+                st.dataframe(resource_table, use_container_width=True, hide_index=True)
             else:
                 st.info("No resource persons found.")
 
         except Exception as e:
             st.error(f"Could not load resource persons: {e}")
-
         # -------------------- TAB 5: FEEDBACK --------------------
     with tab5:
         st.subheader("Feedback Overview")
