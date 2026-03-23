@@ -536,7 +536,7 @@ def show_sales_dashboard():
             except Exception as e:
                 st.error(f"Booking failed: {e}")
 
-    # -------------------- TAB 2: CLASS STATUS --------------------
+        # -------------------- TAB 2: CLASS STATUS --------------------
     with tab2:
         st.subheader("Class Status")
 
@@ -550,20 +550,42 @@ def show_sales_dashboard():
             )
 
             if status_res.data:
+                table_data = []
+
+                session_display_map = {
+                    "live_class": "Live Class",
+                    "product_training": "Product Training",
+                    "avrd": "AVRD Session",
+                    "workshop": "Workshop"
+                }
+
+                status_display_map = {
+                    "pending": "Pending",
+                    "approved": "Approved",
+                    "rp_assigned": "RP Assigned",
+                    "zoom_sent": "Zoom Link Sent",
+                    "completed": "Completed",
+                    "feedback_pending": "Feedback Pending",
+                    "closed": "Closed",
+                    "rejected": "Rejected"
+                }
+
                 for booking in status_res.data:
-                    st.markdown("---")
-                    st.write(f"**Session Type:** {booking.get('session_type', '')}")
-                    st.write(f"**School Name:** {booking.get('school_name', '')}")
-                    st.write(f"**Date:** {booking.get('preferred_date', '')}")
-                    st.write(f"**Time Slot:** {booking.get('preferred_time_slot', '')}")
-                    st.write(f"**Status:** {booking.get('status', '')}")
+                    table_data.append({
+                        "Session Type": session_display_map.get(booking.get("session_type"), booking.get("session_type", "")),
+                        "School Name": booking.get("school_name", ""),
+                        "Date": booking.get("preferred_date", ""),
+                        "Time Slot": booking.get("preferred_time_slot", ""),
+                        "Status": status_display_map.get(booking.get("status"), booking.get("status", ""))
+                    })
+
+                st.dataframe(table_data, use_container_width=True, hide_index=True)
             else:
                 st.info("No class status found.")
 
         except Exception as e:
             st.error(f"Could not load class status: {e}")
-
-    # -------------------- TAB 3: ALL CLASSES --------------------
+        # -------------------- TAB 3: ALL CLASSES --------------------
     with tab3:
         st.subheader("All Classes")
 
@@ -577,25 +599,47 @@ def show_sales_dashboard():
             )
 
             if all_res.data:
+                table_data = []
+
+                session_display_map = {
+                    "live_class": "Live Class",
+                    "product_training": "Product Training",
+                    "avrd": "AVRD Session",
+                    "workshop": "Workshop"
+                }
+
+                status_display_map = {
+                    "pending": "Pending",
+                    "approved": "Approved",
+                    "rp_assigned": "RP Assigned",
+                    "zoom_sent": "Zoom Link Sent",
+                    "completed": "Completed",
+                    "feedback_pending": "Feedback Pending",
+                    "closed": "Closed",
+                    "rejected": "Rejected"
+                }
+
                 for booking in all_res.data:
-                    st.markdown("---")
-                    st.write(f"**Session Type:** {booking.get('session_type', '')}")
-                    st.write(f"**School Name:** {booking.get('school_name', '')}")
-                    st.write(f"**School Grade:** {booking.get('school_grade', '')}")
-                    st.write(f"**Subject:** {booking.get('subject', '')}")
-                    st.write(f"**Class / Standard:** {booking.get('class_standard', '')}")
-                    st.write(f"**Preferred Date:** {booking.get('preferred_date', '')}")
-                    st.write(f"**Preferred Time Slot:** {booking.get('preferred_time_slot', '')}")
-                    st.write(f"**Curriculum:** {booking.get('curriculum', '')}")
-                    st.write(f"**Book Title:** {booking.get('book_title', '')}")
-                    st.write(f"**Area / Location:** {booking.get('area_location', '')}")
-                    st.write(f"**Status:** {booking.get('status', '')}")
+                    table_data.append({
+                        "Session Type": session_display_map.get(booking.get("session_type"), booking.get("session_type", "")),
+                        "School Name": booking.get("school_name", ""),
+                        "School Grade": booking.get("school_grade", ""),
+                        "Subject": booking.get("subject", ""),
+                        "Class / Standard": booking.get("class_standard", ""),
+                        "Preferred Date": booking.get("preferred_date", ""),
+                        "Preferred Time Slot": booking.get("preferred_time_slot", ""),
+                        "Curriculum": booking.get("curriculum", ""),
+                        "Book Title": booking.get("book_title", ""),
+                        "Area / Location": booking.get("area_location", ""),
+                        "Status": status_display_map.get(booking.get("status"), booking.get("status", ""))
+                    })
+
+                st.dataframe(table_data, use_container_width=True, hide_index=True)
             else:
                 st.info("No classes found.")
 
         except Exception as e:
             st.error(f"Could not load classes: {e}")
-
     # -------------------- TAB 4: ADD FEEDBACK --------------------
     with tab4:
         st.subheader("Add Feedback")
