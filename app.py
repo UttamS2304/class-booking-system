@@ -387,7 +387,7 @@ def show_sales_dashboard():
     ])
 
     # -------------------- TAB 1: BOOK CLASS --------------------
-    with tab1:
+with tab1:
     st.subheader("Book a Class")
 
     subject_options = [
