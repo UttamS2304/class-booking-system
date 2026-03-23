@@ -387,7 +387,7 @@ def show_sales_dashboard():
         "Add Feedback"
     ])
 
-    # -------------------- TAB 1: BOOK CLASS --------------------
+        # -------------------- TAB 1: BOOK CLASS --------------------
     with tab1:
         st.subheader("Book a Class")
 
@@ -430,12 +430,16 @@ def show_sales_dashboard():
 
             subject = ""
             class_standard = ""
+            topic = ""
 
             if session_type in ["live_class", "product_training"]:
                 subject = st.selectbox("Subject", ["Select Subject"] + subject_options)
 
             if session_type == "live_class":
                 class_standard = st.text_input("Class / Standard")
+
+            if session_type in ["live_class", "product_training", "workshop"]:
+                topic = st.text_input("Topic of the Session *")
 
             preferred_date = st.date_input(
                 "Preferred Date",
@@ -468,6 +472,10 @@ def show_sales_dashboard():
 
             if session_type == "live_class" and not class_standard.strip():
                 st.error("Please enter class / standard.")
+                st.stop()
+
+            if session_type in ["live_class", "product_training", "workshop"] and not topic.strip():
+                st.error("Please enter topic.")
                 st.stop()
 
             if preferred_date <= datetime.today().date():
@@ -523,6 +531,7 @@ def show_sales_dashboard():
                     "school_grade": school_grade.strip(),
                     "subject": subject if session_type in ["live_class", "product_training"] else None,
                     "class_standard": class_standard.strip() if session_type == "live_class" else None,
+                    "topic": topic.strip() if topic else None,
                     "preferred_date": str(preferred_date),
                     "preferred_time_slot": preferred_time,
                     "curriculum": curriculum.strip(),
@@ -536,7 +545,6 @@ def show_sales_dashboard():
 
             except Exception as e:
                 st.error(f"Booking failed: {e}")
-
         # -------------------- TAB 2: CLASS STATUS --------------------
     with tab2:
         st.subheader("Class Status")
