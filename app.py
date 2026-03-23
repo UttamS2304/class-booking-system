@@ -375,6 +375,102 @@ def is_rp_slot_conflicting(resource_person_number, preferred_date, preferred_tim
     except Exception:
         return True
 
+
+def is_rp_unavailable(resource_person_number, preferred_date):
+    try:
+        availability_res = (
+            supabase.table("resource_availability")
+            .select("*")
+            .eq("resource_person_number", resource_person_number)
+            .eq("date", str(preferred_date))
+            .execute()
+        )
+
+        if not availability_res.data:
+            return False
+
+        for av in availability_res.data:
+            if av.get("type") == "unavailable":
+                return True
+
+        return False
+
+    except Exception:
+        return True
+
+
+def get_available_rps_for_booking(booking):
+    try:
+        preferred_date = str(booking.get("preferred_date"))
+        preferred_time_slot = booking.get("preferred_time_slot")
+
+        rp_res = supabase.table("resource_profiles").select("*").execute()
+        if not rp_res.data:
+            return {}
+
+        available_rps = {}
+
+        for rp in rp_res.data:
+            rp_number = rp.get("mobile_number")
+            subject_1 = rp.get("subject_1")
+            subject_2 = rp.get("subject_2")
+            subject_3 = rp.get("subject_3")
+
+            if is_rp_unavailable(rp_number, preferred_date):
+                continue
+
+            if is_rp_slot_conflicting(rp_number, preferred_date, preferred_time_slot):
+                continue
+
+            label = f"{rp_number} | {subject_1 or '-'} | {subject_2 or '-'} | {subject_3 or '-'}"
+            available_rps[label] = rp_number
+
+        return available_rps
+
+    except Exception:
+        return {}
+
+
+def auto_assign_rp_for_subject_booking(booking):
+    try:
+        booking_subject = booking.get("subject")
+        preferred_date = str(booking.get("preferred_date"))
+        preferred_time_slot = booking.get("preferred_time_slot")
+
+        rp_res = supabase.table("resource_profiles").select("*").execute()
+        if not rp_res.data:
+            return None
+
+        primary_matches = []
+        secondary_matches = []
+
+        for rp in rp_res.data:
+            rp_number = rp.get("mobile_number")
+            subject_1 = rp.get("subject_1")
+            subject_2 = rp.get("subject_2")
+            subject_3 = rp.get("subject_3")
+
+            if is_rp_unavailable(rp_number, preferred_date):
+                continue
+
+            if is_rp_slot_conflicting(rp_number, preferred_date, preferred_time_slot):
+                continue
+
+            if booking_subject == subject_1:
+                primary_matches.append(rp_number)
+            elif booking_subject in [subject_2, subject_3]:
+                secondary_matches.append(rp_number)
+
+        if primary_matches:
+            return primary_matches[0]
+
+        if secondary_matches:
+            return secondary_matches[0]
+
+        return None
+
+    except Exception:
+        return None
 def show_sales_dashboard():
     st.title("Sales Dashboard")
     st.write(f"Welcome, {st.session_state.user_name}")
@@ -1227,7 +1323,7 @@ def show_admin_dashboard():
 
         except Exception as e:
             st.error(f"Could not load sales persons: {e}")
-        # -------------------- TAB 3: CLASS STATUS / APPROVE / REJECT / ASSIGN --------------------
+            # -------------------- TAB 3: CLASS STATUS / APPROVE / REJECT / ASSIGN --------------------
     with tab3:
         st.subheader("Class Status Management")
 
@@ -1259,23 +1355,6 @@ def show_admin_dashboard():
                     "rejected": "Rejected"
                 }
 
-                resource_res = (
-                    supabase.table("resource_profiles")
-                    .select("*")
-                    .execute()
-                )
-
-                resource_options = {}
-                if resource_res.data:
-                    for rp in resource_res.data:
-                        label = (
-                            f"{rp.get('mobile_number', '')} | "
-                            f"{rp.get('subject_1', '')}, "
-                            f"{rp.get('subject_2', '') or '-'}, "
-                            f"{rp.get('subject_3', '') or '-'}"
-                        )
-                        resource_options[label] = rp.get("mobile_number")
-
                 table_data = []
                 for booking in pending_res.data:
                     table_data.append({
@@ -1304,68 +1383,65 @@ def show_admin_dashboard():
 
                 selected_booking = booking_map[selected_booking_label]
                 booking_id = selected_booking.get("id")
+                session_type = selected_booking.get("session_type", "")
 
-                if resource_options:
-                    selected_rp_label = st.selectbox(
-                        "Assign Resource Person",
-                        list(resource_options.keys())
-                    )
-                else:
-                    selected_rp_label = None
-                    st.warning("No resource persons found.")
+                selected_rp_label = None
+                available_rp_options = {}
+
+                if session_type in ["avrd", "workshop"]:
+                    available_rp_options = get_available_rps_for_booking(selected_booking)
+
+                    if available_rp_options:
+                        selected_rp_label = st.selectbox(
+                            "Select Available Resource Person",
+                            list(available_rp_options.keys())
+                        )
+                    else:
+                        st.warning("No resource person is available for this date and time slot.")
 
                 col1, col2, col3 = st.columns(3)
 
                 with col1:
                     if st.button("Approve", use_container_width=True):
                         try:
-                            update_data = {"status": "approved"}
-                            assigned_number = None
+                            # Live/Product => auto assign
+                            if session_type in ["live_class", "product_training"]:
+                                assigned_number = auto_assign_rp_for_subject_booking(selected_booking)
 
-                            if selected_rp_label:
-                                assigned_number = resource_options[selected_rp_label]
-
-                                conflict = is_rp_slot_conflicting(
-                                    assigned_number,
-                                    selected_booking.get("preferred_date"),
-                                    selected_booking.get("preferred_time_slot")
-                                )
-
-                                if conflict:
-                                    st.error("Selected resource person already has a session in this time slot.")
+                                if not assigned_number:
+                                    st.error("No eligible resource person is available for this subject, date, and time slot.")
                                     st.stop()
 
-                                update_data["resource_person_number"] = assigned_number
-                                update_data["status"] = "rp_assigned"
+                                supabase.table("bookings").update({
+                                    "status": "rp_assigned",
+                                    "resource_person_number": assigned_number
+                                }).eq("id", booking_id).execute()
 
-                            supabase.table("bookings").update(update_data).eq("id", booking_id).execute()
-
-                            updated_booking_res = (
-                                supabase.table("bookings")
-                                .select("*")
-                                .eq("id", booking_id)
-                                .execute()
-                            )
-
-                            if updated_booking_res.data:
-                                updated_booking = updated_booking_res.data[0]
-
-                                sales_user_res = (
-                                    supabase.table("users")
+                                updated_booking_res = (
+                                    supabase.table("bookings")
                                     .select("*")
-                                    .eq("mobile_number", updated_booking["sales_person_number"])
+                                    .eq("id", booking_id)
                                     .execute()
                                 )
 
-                                if sales_user_res.data:
-                                    sales_user = sales_user_res.data[0]
-                                    sales_subject, sales_body = build_sales_confirmation_email(
-                                        updated_booking,
-                                        sales_user.get("name", "Sales Person")
-                                    )
-                                    send_email(sales_user["email"], sales_subject, sales_body)
+                                if updated_booking_res.data:
+                                    updated_booking = updated_booking_res.data[0]
 
-                                if assigned_number:
+                                    sales_user_res = (
+                                        supabase.table("users")
+                                        .select("*")
+                                        .eq("mobile_number", updated_booking["sales_person_number"])
+                                        .execute()
+                                    )
+
+                                    if sales_user_res.data:
+                                        sales_user = sales_user_res.data[0]
+                                        sales_subject, sales_body = build_sales_confirmation_email(
+                                            updated_booking,
+                                            sales_user.get("name", "Sales Person")
+                                        )
+                                        send_email(sales_user["email"], sales_subject, sales_body)
+
                                     rp_user_res = (
                                         supabase.table("users")
                                         .select("*")
@@ -1381,8 +1457,17 @@ def show_admin_dashboard():
                                         )
                                         send_email(rp_user["email"], rp_subject, rp_body)
 
-                            st.success("Booking approved successfully.")
-                            st.rerun()
+                                st.success("Booking approved and resource person assigned automatically.")
+                                st.rerun()
+
+                            # AVRD/Workshop => only approve
+                            else:
+                                supabase.table("bookings").update({
+                                    "status": "approved"
+                                }).eq("id", booking_id).execute()
+
+                                st.success("Booking approved successfully. Please assign a resource person manually.")
+                                st.rerun()
 
                         except Exception as e:
                             st.error(f"Approve failed: {e}")
@@ -1401,34 +1486,53 @@ def show_admin_dashboard():
                             st.error(f"Reject failed: {e}")
 
                 with col3:
-                    if st.button("Assign RP Only", use_container_width=True):
-                        try:
-                            if not selected_rp_label:
-                                st.error("Please select a resource person.")
-                                st.stop()
+                    if session_type in ["avrd", "workshop"]:
+                        if st.button("Assign RP Only", use_container_width=True):
+                            try:
+                                if not selected_rp_label:
+                                    st.error("Please select a resource person.")
+                                    st.stop()
 
-                            assigned_number = resource_options[selected_rp_label]
+                                assigned_number = available_rp_options[selected_rp_label]
 
-                            conflict = is_rp_slot_conflicting(
-                                assigned_number,
-                                selected_booking.get("preferred_date"),
-                                selected_booking.get("preferred_time_slot")
-                            )
+                                supabase.table("bookings").update({
+                                    "resource_person_number": assigned_number,
+                                    "status": "rp_assigned"
+                                }).eq("id", booking_id).execute()
 
-                            if conflict:
-                                st.error("Selected resource person already has a session in this time slot.")
-                                st.stop()
+                                updated_booking_res = (
+                                    supabase.table("bookings")
+                                    .select("*")
+                                    .eq("id", booking_id)
+                                    .execute()
+                                )
 
-                            supabase.table("bookings").update({
-                                "resource_person_number": assigned_number,
-                                "status": "rp_assigned"
-                            }).eq("id", booking_id).execute()
+                                if updated_booking_res.data:
+                                    updated_booking = updated_booking_res.data[0]
 
-                            st.success("Resource person assigned successfully.")
-                            st.rerun()
+                                    rp_user_res = (
+                                        supabase.table("users")
+                                        .select("*")
+                                        .eq("mobile_number", assigned_number)
+                                        .execute()
+                                    )
 
-                        except Exception as e:
-                            st.error(f"RP assignment failed: {e}")
+                                    if rp_user_res.data:
+                                        rp_user = rp_user_res.data[0]
+                                        rp_subject, rp_body = build_resource_assignment_email(
+                                            updated_booking,
+                                            rp_user.get("name", "Resource Person")
+                                        )
+                                        send_email(rp_user["email"], rp_subject, rp_body)
+
+                                st.success("Resource person assigned successfully.")
+                                st.rerun()
+
+                            except Exception as e:
+                                st.error(f"RP assignment failed: {e}")
+                    else:
+                        st.info("Auto-assigned on approval.")
+
             else:
                 st.info("No pending or approved bookings found.")
 
