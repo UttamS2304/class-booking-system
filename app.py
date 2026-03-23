@@ -459,35 +459,35 @@ with tab1:
 
         if not school_grade.strip():
             st.error("Please enter school grade.")
-            return
+            st.stop()
 
         if session_type in ["live_class", "product_training"] and subject == "Select Subject":
             st.error("Please select a subject.")
-            return
+            st.stop()
 
         if session_type == "live_class" and not class_standard.strip():
             st.error("Please enter class / standard.")
-            return
+            st.stop()
 
         if preferred_date <= datetime.today().date():
             st.error("Booking can only be made at least one day in advance.")
-            return
+            st.stop()
 
         if preferred_time == "Select Time Slot":
             st.error("Please select a preferred time slot.")
-            return
+            st.stop()
 
         if not curriculum.strip():
             st.error("Please enter curriculum.")
-            return
+            st.stop()
 
         if not book_title.strip():
             st.error("Please enter book title.")
-            return
+            st.stop()
 
         if not area.strip():
             st.error("Please enter area / location.")
-            return
+            st.stop()
 
         try:
             brand_res = (
