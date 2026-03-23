@@ -1013,7 +1013,7 @@ def show_admin_dashboard():
         "Reports"
     ])
 
-        # -------------------- TAB 1: ALL BOOKINGS + ZOOM LINK --------------------
+            # -------------------- TAB 1: ALL BOOKINGS + ZOOM LINK + MARK AS COMPLETED --------------------
     with tab1:
         st.subheader("All Class Bookings")
 
@@ -1051,17 +1051,24 @@ def show_admin_dashboard():
                         "Sales Person": booking.get("sales_person_number", ""),
                         "Resource Person": booking.get("resource_person_number", ""),
                         "Brand": get_brand_display_name(booking.get("brand_type", "")),
-                        "Session Type": session_display_map.get(booking.get("session_type"), booking.get("session_type", "")),
+                        "Session Type": session_display_map.get(
+                            booking.get("session_type"),
+                            booking.get("session_type", "")
+                        ),
                         "School Name": booking.get("school_name", ""),
-                        "Date": booking.get("preferred_date", ""),
-                        "Time Slot": booking.get("preferred_time_slot", ""),
-                        "Status": status_display_map.get(booking.get("status"), booking.get("status", "")),
+                        "Preferred Date": booking.get("preferred_date", ""),
+                        "Preferred Time Slot": booking.get("preferred_time_slot", ""),
+                        "Status": status_display_map.get(
+                            booking.get("status"),
+                            booking.get("status", "")
+                        ),
                         "Zoom Link": booking.get("zoom_link", "")
                     })
 
                 st.dataframe(table_data, use_container_width=True, hide_index=True)
 
-                st.markdown("### Send Zoom Link")
+                st.markdown("### Booking Actions")
+
                 booking_map = {
                     f"{get_brand_display_name(b.get('brand_type', ''))} | {b.get('school_name', '')} | {b.get('preferred_date', '')} | {b.get('preferred_time_slot', '')}": b
                     for b in bookings_res.data
@@ -1072,60 +1079,89 @@ def show_admin_dashboard():
                     list(booking_map.keys())
                 )
 
-                zoom_link_value = st.text_input("Zoom Link")
+                selected_booking = booking_map[selected_booking_label]
+                booking_id = selected_booking.get("id")
+                current_status = selected_booking.get("status", "")
 
-                if st.button("Send Zoom Link", use_container_width=True):
-                    try:
-                        if not zoom_link_value.strip():
-                            st.error("Please enter Zoom link.")
-                            st.stop()
+                st.write(f"**Current Status:** {status_display_map.get(current_status, current_status)}")
 
-                        booking = booking_map[selected_booking_label]
-                        booking_id = booking.get("id")
+                zoom_link_value = st.text_input(
+                    "Zoom Link",
+                    value=selected_booking.get("zoom_link", "") if selected_booking.get("zoom_link") else ""
+                )
 
-                        supabase.table("bookings").update({
-                            "zoom_link": zoom_link_value,
-                            "status": "zoom_sent"
-                        }).eq("id", booking_id).execute()
+                col1, col2 = st.columns(2)
 
-                        sales_user_res = (
-                            supabase.table("users")
-                            .select("*")
-                            .eq("mobile_number", booking["sales_person_number"])
-                            .execute()
-                        )
+                with col1:
+                    if st.button("Send Zoom Link", use_container_width=True):
+                        try:
+                            if not zoom_link_value.strip():
+                                st.error("Please enter Zoom link.")
+                                st.stop()
 
-                        if sales_user_res.data:
-                            sales_user = sales_user_res.data[0]
-                            subject_line, body = build_zoom_link_email(
-                                booking,
-                                sales_user.get("name", "Sales Person"),
-                                zoom_link_value
-                            )
-                            send_email(sales_user["email"], subject_line, body)
+                            supabase.table("bookings").update({
+                                "zoom_link": zoom_link_value,
+                                "status": "zoom_sent"
+                            }).eq("id", booking_id).execute()
 
-                        if booking.get("resource_person_number"):
-                            rp_user_res = (
+                            # Sales person mail
+                            sales_user_res = (
                                 supabase.table("users")
                                 .select("*")
-                                .eq("mobile_number", booking["resource_person_number"])
+                                .eq("mobile_number", selected_booking["sales_person_number"])
                                 .execute()
                             )
 
-                            if rp_user_res.data:
-                                rp_user = rp_user_res.data[0]
+                            if sales_user_res.data:
+                                sales_user = sales_user_res.data[0]
                                 subject_line, body = build_zoom_link_email(
-                                    booking,
-                                    rp_user.get("name", "Resource Person"),
+                                    selected_booking,
+                                    sales_user.get("name", "Sales Person"),
                                     zoom_link_value
                                 )
-                                send_email(rp_user["email"], subject_line, body)
+                                send_email(sales_user["email"], subject_line, body)
 
-                        st.success("Zoom link sent successfully.")
-                        st.rerun()
+                            # Resource person mail
+                            if selected_booking.get("resource_person_number"):
+                                rp_user_res = (
+                                    supabase.table("users")
+                                    .select("*")
+                                    .eq("mobile_number", selected_booking["resource_person_number"])
+                                    .execute()
+                                )
 
-                    except Exception as e:
-                        st.error(f"Zoom mail failed: {e}")
+                                if rp_user_res.data:
+                                    rp_user = rp_user_res.data[0]
+                                    subject_line, body = build_zoom_link_email(
+                                        selected_booking,
+                                        rp_user.get("name", "Resource Person"),
+                                        zoom_link_value
+                                    )
+                                    send_email(rp_user["email"], subject_line, body)
+
+                            st.success("Zoom link sent successfully.")
+                            st.rerun()
+
+                        except Exception as e:
+                            st.error(f"Zoom mail failed: {e}")
+
+                with col2:
+                    if st.button("Mark as Completed", use_container_width=True):
+                        try:
+                            if current_status not in ["approved", "rp_assigned", "zoom_sent"]:
+                                st.error("Only approved, assigned, or zoom-sent classes can be marked as completed.")
+                                st.stop()
+
+                            supabase.table("bookings").update({
+                                "status": "completed"
+                            }).eq("id", booking_id).execute()
+
+                            st.success("Class marked as completed successfully.")
+                            st.rerun()
+
+                        except Exception as e:
+                            st.error(f"Could not mark class as completed: {e}")
+
             else:
                 st.info("No bookings found.")
 
