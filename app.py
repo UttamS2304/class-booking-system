@@ -708,7 +708,7 @@ def show_admin_dashboard():
         "Reports"
     ])
 
-    # -------------------- TAB 1: ALL BOOKINGS + ZOOM LINK --------------------
+        # -------------------- TAB 1: ALL BOOKINGS + ZOOM LINK --------------------
     with tab1:
         st.subheader("All Class Bookings")
 
@@ -721,89 +721,111 @@ def show_admin_dashboard():
             )
 
             if bookings_res.data:
+                session_display_map = {
+                    "live_class": "Live Class",
+                    "product_training": "Product Training",
+                    "avrd": "AVRD Session",
+                    "workshop": "Workshop"
+                }
+
+                status_display_map = {
+                    "pending": "Pending",
+                    "approved": "Approved",
+                    "rp_assigned": "RP Assigned",
+                    "zoom_sent": "Zoom Link Sent",
+                    "completed": "Completed",
+                    "feedback_pending": "Feedback Pending",
+                    "closed": "Closed",
+                    "rejected": "Rejected"
+                }
+
+                table_data = []
                 for booking in bookings_res.data:
-                    booking_id = booking.get("id", "")
+                    table_data.append({
+                        "Booking ID": booking.get("id", ""),
+                        "Sales Person": booking.get("sales_person_number", ""),
+                        "Resource Person": booking.get("resource_person_number", ""),
+                        "Brand": get_brand_display_name(booking.get("brand_type", "")),
+                        "Session Type": session_display_map.get(booking.get("session_type"), booking.get("session_type", "")),
+                        "School Name": booking.get("school_name", ""),
+                        "Date": booking.get("preferred_date", ""),
+                        "Time Slot": booking.get("preferred_time_slot", ""),
+                        "Status": status_display_map.get(booking.get("status"), booking.get("status", "")),
+                        "Zoom Link": booking.get("zoom_link", "")
+                    })
 
-                    st.markdown("---")
-                    st.write(f"**Booking ID:** {booking_id}")
-                    st.write(f"**Sales Person Number:** {booking.get('sales_person_number', '')}")
-                    st.write(f"**Resource Person Number:** {booking.get('resource_person_number', '')}")
-                    st.write(f"**Brand Type:** {booking.get('brand_type', '')}")
-                    st.write(f"**Session Type:** {booking.get('session_type', '')}")
-                    st.write(f"**School Name:** {booking.get('school_name', '')}")
-                    st.write(f"**School Grade:** {booking.get('school_grade', '')}")
-                    st.write(f"**Subject:** {booking.get('subject', '')}")
-                    st.write(f"**Class / Standard:** {booking.get('class_standard', '')}")
-                    st.write(f"**Preferred Date:** {booking.get('preferred_date', '')}")
-                    st.write(f"**Preferred Time Slot:** {booking.get('preferred_time_slot', '')}")
-                    st.write(f"**Curriculum:** {booking.get('curriculum', '')}")
-                    st.write(f"**Book Title:** {booking.get('book_title', '')}")
-                    st.write(f"**Area / Location:** {booking.get('area_location', '')}")
-                    st.write(f"**Status:** {booking.get('status', '')}")
+                st.dataframe(table_data, use_container_width=True, hide_index=True)
 
-                    if booking.get("zoom_link"):
-                        st.write(f"**Existing Zoom Link:** {booking.get('zoom_link')}")
+                st.markdown("### Send Zoom Link")
+                booking_map = {
+                    f"{get_brand_display_name(b.get('brand_type', ''))} | {b.get('school_name', '')} | {b.get('preferred_date', '')} | {b.get('preferred_time_slot', '')}": b
+                    for b in bookings_res.data
+                }
 
-                    zoom_link_value = st.text_input(
-                        f"Zoom Link for booking {booking_id}",
-                        value=booking.get("zoom_link", "") if booking.get("zoom_link") else "",
-                        key=f"zoom_input_{booking_id}"
-                    )
+                selected_booking_label = st.selectbox(
+                    "Select Booking",
+                    list(booking_map.keys())
+                )
 
-                    if st.button(f"Send Zoom Link - {booking_id}", key=f"zoom_send_{booking_id}"):
-                        try:
-                            if not zoom_link_value.strip():
-                                st.error("Please enter Zoom link.")
-                            else:
-                                supabase.table("bookings").update({
-                                    "zoom_link": zoom_link_value,
-                                    "status": "zoom_sent"
-                                }).eq("id", booking_id).execute()
+                zoom_link_value = st.text_input("Zoom Link")
 
-                                sales_user_res = (
-                                    supabase.table("users")
-                                    .select("*")
-                                    .eq("mobile_number", booking["sales_person_number"])
-                                    .execute()
+                if st.button("Send Zoom Link", use_container_width=True):
+                    try:
+                        if not zoom_link_value.strip():
+                            st.error("Please enter Zoom link.")
+                            st.stop()
+
+                        booking = booking_map[selected_booking_label]
+                        booking_id = booking.get("id")
+
+                        supabase.table("bookings").update({
+                            "zoom_link": zoom_link_value,
+                            "status": "zoom_sent"
+                        }).eq("id", booking_id).execute()
+
+                        sales_user_res = (
+                            supabase.table("users")
+                            .select("*")
+                            .eq("mobile_number", booking["sales_person_number"])
+                            .execute()
+                        )
+
+                        if sales_user_res.data:
+                            sales_user = sales_user_res.data[0]
+                            subject_line, body = build_zoom_link_email(
+                                booking,
+                                sales_user.get("name", "Sales Person"),
+                                zoom_link_value
+                            )
+                            send_email(sales_user["email"], subject_line, body)
+
+                        if booking.get("resource_person_number"):
+                            rp_user_res = (
+                                supabase.table("users")
+                                .select("*")
+                                .eq("mobile_number", booking["resource_person_number"])
+                                .execute()
+                            )
+
+                            if rp_user_res.data:
+                                rp_user = rp_user_res.data[0]
+                                subject_line, body = build_zoom_link_email(
+                                    booking,
+                                    rp_user.get("name", "Resource Person"),
+                                    zoom_link_value
                                 )
+                                send_email(rp_user["email"], subject_line, body)
 
-                                if sales_user_res.data:
-                                    sales_user = sales_user_res.data[0]
-                                    subject_line, body = build_zoom_link_email(
-                                        booking,
-                                        sales_user.get("name", "Sales Person"),
-                                        zoom_link_value
-                                    )
-                                    send_email(sales_user["email"], subject_line, body)
+                        st.success("Zoom link sent successfully.")
+                        st.rerun()
 
-                                if booking.get("resource_person_number"):
-                                    rp_user_res = (
-                                        supabase.table("users")
-                                        .select("*")
-                                        .eq("mobile_number", booking["resource_person_number"])
-                                        .execute()
-                                    )
-
-                                    if rp_user_res.data:
-                                        rp_user = rp_user_res.data[0]
-                                        subject_line, body = build_zoom_link_email(
-                                            booking,
-                                            rp_user.get("name", "Resource Person"),
-                                            zoom_link_value
-                                        )
-                                        send_email(rp_user["email"], subject_line, body)
-
-                                st.success("Zoom link sent successfully.")
-                                st.rerun()
-
-                        except Exception as e:
-                            st.error(f"Zoom mail failed: {e}")
+                    except Exception as e:
+                        st.error(f"Zoom mail failed: {e}")
             else:
                 st.info("No bookings found.")
 
         except Exception as e:
             st.error(f"Could not load bookings: {e}")
-
     # -------------------- TAB 2: SALES PERSONS MANAGE --------------------
     with tab2:
         st.subheader("Sales Persons Manage")
@@ -845,9 +867,9 @@ def show_admin_dashboard():
         except Exception as e:
             st.error(f"Could not load sales persons: {e}")
 
-    # -------------------- TAB 3: CLASS STATUS / APPROVE / REJECT / ASSIGN --------------------
+        # -------------------- TAB 3: CLASS STATUS / APPROVE / REJECT / ASSIGN --------------------
     with tab3:
-        st.subheader("Class Status")
+        st.subheader("Class Status Management")
 
         try:
             pending_res = (
@@ -859,6 +881,24 @@ def show_admin_dashboard():
             )
 
             if pending_res.data:
+                session_display_map = {
+                    "live_class": "Live Class",
+                    "product_training": "Product Training",
+                    "avrd": "AVRD Session",
+                    "workshop": "Workshop"
+                }
+
+                status_display_map = {
+                    "pending": "Pending",
+                    "approved": "Approved",
+                    "rp_assigned": "RP Assigned",
+                    "zoom_sent": "Zoom Link Sent",
+                    "completed": "Completed",
+                    "feedback_pending": "Feedback Pending",
+                    "closed": "Closed",
+                    "rejected": "Rejected"
+                }
+
                 resource_res = (
                     supabase.table("resource_profiles")
                     .select("*")
@@ -871,155 +911,169 @@ def show_admin_dashboard():
                         label = (
                             f"{rp.get('mobile_number', '')} | "
                             f"{rp.get('subject_1', '')}, "
-                            f"{rp.get('subject_2', '')}, "
-                            f"{rp.get('subject_3', '')}"
+                            f"{rp.get('subject_2', '') or '-'}, "
+                            f"{rp.get('subject_3', '') or '-'}"
                         )
                         resource_options[label] = rp.get("mobile_number")
 
+                table_data = []
                 for booking in pending_res.data:
-                    booking_id = booking.get("id")
+                    table_data.append({
+                        "Booking ID": booking.get("id", ""),
+                        "Session Type": session_display_map.get(booking.get("session_type"), booking.get("session_type", "")),
+                        "School Name": booking.get("school_name", ""),
+                        "Subject": booking.get("subject", ""),
+                        "Preferred Date": booking.get("preferred_date", ""),
+                        "Preferred Time Slot": booking.get("preferred_time_slot", ""),
+                        "Current Status": status_display_map.get(booking.get("status"), booking.get("status", ""))
+                    })
 
-                    st.markdown("---")
-                    st.write(f"**Booking ID:** {booking_id}")
-                    st.write(f"**Session Type:** {booking.get('session_type', '')}")
-                    st.write(f"**School Name:** {booking.get('school_name', '')}")
-                    st.write(f"**Subject:** {booking.get('subject', '')}")
-                    st.write(f"**Preferred Date:** {booking.get('preferred_date', '')}")
-                    st.write(f"**Preferred Time Slot:** {booking.get('preferred_time_slot', '')}")
-                    st.write(f"**Current Status:** {booking.get('status', '')}")
+                st.dataframe(table_data, use_container_width=True, hide_index=True)
 
-                    if resource_options:
-                        selected_rp_label = st.selectbox(
-                            f"Assign Resource Person for booking {booking_id}",
-                            options=list(resource_options.keys()),
-                            key=f"rp_select_{booking_id}"
-                        )
-                    else:
-                        selected_rp_label = None
-                        st.warning("No resource persons found.")
+                st.markdown("### Update Booking Status")
 
-                    col1, col2, col3 = st.columns(3)
+                booking_map = {
+                    f"{b.get('school_name', '')} | {b.get('preferred_date', '')} | {b.get('preferred_time_slot', '')}": b
+                    for b in pending_res.data
+                }
 
-                    with col1:
-                        if st.button("Approve", key=f"approve_{booking_id}", use_container_width=True):
-                            try:
-                                update_data = {
-                                    "status": "approved"
-                                }
+                selected_booking_label = st.selectbox(
+                    "Select Booking to Manage",
+                    list(booking_map.keys())
+                )
 
-                                assigned_number = None
-                                if selected_rp_label:
-                                    assigned_number = resource_options[selected_rp_label]
+                selected_booking = booking_map[selected_booking_label]
+                booking_id = selected_booking.get("id")
 
-                                    conflict = is_rp_slot_conflicting(
-                                        assigned_number,
-                                        booking.get("preferred_date"),
-                                        booking.get("preferred_time_slot")
-                                    )
+                if resource_options:
+                    selected_rp_label = st.selectbox(
+                        "Assign Resource Person",
+                        list(resource_options.keys())
+                    )
+                else:
+                    selected_rp_label = None
+                    st.warning("No resource persons found.")
 
-                                    if conflict:
-                                        st.error("Selected resource person already has a session in this time slot.")
-                                        return
+                col1, col2, col3 = st.columns(3)
 
-                                    update_data["resource_person_number"] = assigned_number
-                                    update_data["status"] = "rp_assigned"
+                with col1:
+                    if st.button("Approve", use_container_width=True):
+                        try:
+                            update_data = {"status": "approved"}
+                            assigned_number = None
 
-                                supabase.table("bookings").update(update_data).eq("id", booking_id).execute()
+                            if selected_rp_label:
+                                assigned_number = resource_options[selected_rp_label]
 
-                                updated_booking_res = (
-                                    supabase.table("bookings")
+                                conflict = is_rp_slot_conflicting(
+                                    assigned_number,
+                                    selected_booking.get("preferred_date"),
+                                    selected_booking.get("preferred_time_slot")
+                                )
+
+                                if conflict:
+                                    st.error("Selected resource person already has a session in this time slot.")
+                                    st.stop()
+
+                                update_data["resource_person_number"] = assigned_number
+                                update_data["status"] = "rp_assigned"
+
+                            supabase.table("bookings").update(update_data).eq("id", booking_id).execute()
+
+                            updated_booking_res = (
+                                supabase.table("bookings")
+                                .select("*")
+                                .eq("id", booking_id)
+                                .execute()
+                            )
+
+                            if updated_booking_res.data:
+                                updated_booking = updated_booking_res.data[0]
+
+                                sales_user_res = (
+                                    supabase.table("users")
                                     .select("*")
-                                    .eq("id", booking_id)
+                                    .eq("mobile_number", updated_booking["sales_person_number"])
                                     .execute()
                                 )
 
-                                if updated_booking_res.data:
-                                    updated_booking = updated_booking_res.data[0]
+                                if sales_user_res.data:
+                                    sales_user = sales_user_res.data[0]
+                                    sales_subject, sales_body = build_sales_confirmation_email(
+                                        updated_booking,
+                                        sales_user.get("name", "Sales Person")
+                                    )
+                                    send_email(sales_user["email"], sales_subject, sales_body)
 
-                                    sales_user_res = (
+                                if assigned_number:
+                                    rp_user_res = (
                                         supabase.table("users")
                                         .select("*")
-                                        .eq("mobile_number", updated_booking["sales_person_number"])
+                                        .eq("mobile_number", assigned_number)
                                         .execute()
                                     )
 
-                                    if sales_user_res.data:
-                                        sales_user = sales_user_res.data[0]
-                                        sales_subject, sales_body = build_sales_confirmation_email(
+                                    if rp_user_res.data:
+                                        rp_user = rp_user_res.data[0]
+                                        rp_subject, rp_body = build_resource_assignment_email(
                                             updated_booking,
-                                            sales_user.get("name", "Sales Person")
+                                            rp_user.get("name", "Resource Person")
                                         )
-                                        send_email(sales_user["email"], sales_subject, sales_body)
+                                        send_email(rp_user["email"], rp_subject, rp_body)
 
-                                    if assigned_number:
-                                        rp_user_res = (
-                                            supabase.table("users")
-                                            .select("*")
-                                            .eq("mobile_number", assigned_number)
-                                            .execute()
-                                        )
+                            st.success("Booking approved successfully.")
+                            st.rerun()
 
-                                        if rp_user_res.data:
-                                            rp_user = rp_user_res.data[0]
-                                            rp_subject, rp_body = build_resource_assignment_email(
-                                                updated_booking,
-                                                rp_user.get("name", "Resource Person")
-                                            )
-                                            send_email(rp_user["email"], rp_subject, rp_body)
+                        except Exception as e:
+                            st.error(f"Approve failed: {e}")
 
-                                st.success(f"Booking {booking_id} approved and emails sent.")
-                                st.rerun()
+                with col2:
+                    if st.button("Reject", use_container_width=True):
+                        try:
+                            supabase.table("bookings").update({
+                                "status": "rejected"
+                            }).eq("id", booking_id).execute()
 
-                            except Exception as e:
-                                st.error(f"Approve failed: {e}")
+                            st.success("Booking rejected successfully.")
+                            st.rerun()
 
-                    with col2:
-                        if st.button("Reject", key=f"reject_{booking_id}", use_container_width=True):
-                            try:
-                                supabase.table("bookings").update({
-                                    "status": "rejected"
-                                }).eq("id", booking_id).execute()
+                        except Exception as e:
+                            st.error(f"Reject failed: {e}")
 
-                                st.success(f"Booking {booking_id} rejected successfully.")
-                                st.rerun()
+                with col3:
+                    if st.button("Assign RP Only", use_container_width=True):
+                        try:
+                            if not selected_rp_label:
+                                st.error("Please select a resource person.")
+                                st.stop()
 
-                            except Exception as e:
-                                st.error(f"Reject failed: {e}")
+                            assigned_number = resource_options[selected_rp_label]
 
-                    with col3:
-                        if st.button("Assign RP Only", key=f"assign_{booking_id}", use_container_width=True):
-                            try:
-                                if not selected_rp_label:
-                                    st.error("Please select a resource person.")
-                                else:
-                                    assigned_number = resource_options[selected_rp_label]
+                            conflict = is_rp_slot_conflicting(
+                                assigned_number,
+                                selected_booking.get("preferred_date"),
+                                selected_booking.get("preferred_time_slot")
+                            )
 
-                                    conflict = is_rp_slot_conflicting(
-                                        assigned_number,
-                                        booking.get("preferred_date"),
-                                        booking.get("preferred_time_slot")
-                                    )
+                            if conflict:
+                                st.error("Selected resource person already has a session in this time slot.")
+                                st.stop()
 
-                                    if conflict:
-                                        st.error("Selected resource person already has a session in this time slot.")
-                                        return
+                            supabase.table("bookings").update({
+                                "resource_person_number": assigned_number,
+                                "status": "rp_assigned"
+                            }).eq("id", booking_id).execute()
 
-                                    supabase.table("bookings").update({
-                                        "resource_person_number": assigned_number,
-                                        "status": "rp_assigned"
-                                    }).eq("id", booking_id).execute()
+                            st.success("Resource person assigned successfully.")
+                            st.rerun()
 
-                                    st.success(f"RP assigned successfully for booking {booking_id}.")
-                                    st.rerun()
-
-                            except Exception as e:
-                                st.error(f"RP assignment failed: {e}")
+                        except Exception as e:
+                            st.error(f"RP assignment failed: {e}")
             else:
                 st.info("No pending or approved bookings found.")
 
         except Exception as e:
             st.error(f"Could not load class status section: {e}")
-
     # -------------------- TAB 4: RESOURCE PERSON MANAGE --------------------
     with tab4:
         st.subheader("Resource Person Manage")
@@ -1061,9 +1115,9 @@ def show_admin_dashboard():
         except Exception as e:
             st.error(f"Could not load resource persons: {e}")
 
-    # -------------------- TAB 5: FEEDBACK --------------------
+        # -------------------- TAB 5: FEEDBACK --------------------
     with tab5:
-        st.subheader("Feedback")
+        st.subheader("Feedback Overview")
 
         st.markdown("### Sales Feedback")
         try:
@@ -1075,19 +1129,23 @@ def show_admin_dashboard():
             )
 
             if sales_feedback_res.data:
+                sales_table = []
                 for fb in sales_feedback_res.data:
-                    st.markdown("---")
-                    st.write(f"**Booking ID:** {fb.get('booking_id', '')}")
-                    st.write(f"**Sales Person Number:** {fb.get('sales_person_number', '')}")
-                    st.write(f"**Feedback:** {fb.get('feedback_text', '')}")
-                    st.write(f"**Created At:** {fb.get('created_at', '')}")
+                    sales_table.append({
+                        "Booking ID": fb.get("booking_id", ""),
+                        "Sales Person Number": fb.get("sales_person_number", ""),
+                        "Feedback": fb.get("feedback_text", ""),
+                        "Created At": fb.get("created_at", "")
+                    })
+
+                st.dataframe(sales_table, use_container_width=True, hide_index=True)
             else:
                 st.info("No sales feedback found.")
 
         except Exception as e:
             st.error(f"Could not load sales feedback: {e}")
 
-        st.markdown("### Resource Feedback")
+        st.markdown("### Resource Person Feedback")
         try:
             resource_feedback_res = (
                 supabase.table("feedback_resource")
@@ -1097,19 +1155,22 @@ def show_admin_dashboard():
             )
 
             if resource_feedback_res.data:
+                resource_table = []
                 for fb in resource_feedback_res.data:
-                    st.markdown("---")
-                    st.write(f"**Booking ID:** {fb.get('booking_id', '')}")
-                    st.write(f"**Resource Person Number:** {fb.get('resource_person_number', '')}")
-                    st.write(f"**Feedback:** {fb.get('feedback_text', '')}")
-                    st.write(f"**Remark:** {fb.get('remark_text', '')}")
-                    st.write(f"**Created At:** {fb.get('created_at', '')}")
+                    resource_table.append({
+                        "Booking ID": fb.get("booking_id", ""),
+                        "Resource Person Number": fb.get("resource_person_number", ""),
+                        "Feedback": fb.get("feedback_text", ""),
+                        "Remark": fb.get("remark_text", ""),
+                        "Created At": fb.get("created_at", "")
+                    })
+
+                st.dataframe(resource_table, use_container_width=True, hide_index=True)
             else:
                 st.info("No resource feedback found.")
 
         except Exception as e:
             st.error(f"Could not load resource feedback: {e}")
-
     # -------------------- TAB 6: REPORTS --------------------
     with tab6:
         st.subheader("Reports")
