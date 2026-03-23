@@ -455,7 +455,7 @@ with tab1:
     if submitted:
         if not school_name.strip():
             st.error("Please enter school name.")
-            return
+            st.stop()
 
         if not school_grade.strip():
             st.error("Please enter school grade.")
