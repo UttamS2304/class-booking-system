@@ -640,7 +640,7 @@ def show_sales_dashboard():
 
         except Exception as e:
             st.error(f"Could not load classes: {e}")
-    # -------------------- TAB 4: ADD FEEDBACK --------------------
+        # -------------------- TAB 4: ADD FEEDBACK --------------------
     with tab4:
         st.subheader("Add Feedback")
 
@@ -656,7 +656,7 @@ def show_sales_dashboard():
 
             if feedback_booking_res.data:
                 booking_options = {
-                    f"{b.get('school_name', '')} | {b.get('session_type', '')} | {b.get('preferred_date', '')}": b["id"]
+                    f"{b.get('school_name', '')} | {b.get('preferred_date', '')} | {b.get('preferred_time_slot', '')}": b["id"]
                     for b in feedback_booking_res.data
                 }
 
@@ -665,26 +665,50 @@ def show_sales_dashboard():
                     list(booking_options.keys())
                 )
 
-                feedback_text = st.text_area("Enter Feedback")
+                rating_options = {
+                    "⭐ 1": 1,
+                    "⭐⭐ 2": 2,
+                    "⭐⭐⭐ 3": 3,
+                    "⭐⭐⭐⭐ 4": 4,
+                    "⭐⭐⭐⭐⭐ 5": 5
+                }
+
+                selected_rating_label = st.selectbox(
+                    "Rating of the Session",
+                    list(rating_options.keys())
+                )
+                session_rating = rating_options[selected_rating_label]
+
+                feedback_text = st.text_area("Comments (Optional)")
 
                 if st.button("Submit Feedback", use_container_width=True):
                     selected_booking_id = booking_options[selected_booking_label]
 
-                    if not feedback_text.strip():
-                        st.error("Please enter feedback.")
-                    else:
-                        try:
-                            feedback_data = {
-                                "booking_id": selected_booking_id,
-                                "sales_person_number": st.session_state.user_mobile,
-                                "feedback_text": feedback_text
-                            }
+                    try:
+                        existing_feedback_res = (
+                            supabase.table("feedback_sales")
+                            .select("*")
+                            .eq("booking_id", selected_booking_id)
+                            .eq("sales_person_number", st.session_state.user_mobile)
+                            .execute()
+                        )
 
-                            supabase.table("feedback_sales").insert(feedback_data).execute()
-                            st.success("Feedback submitted successfully.")
+                        if existing_feedback_res.data:
+                            st.error("Feedback for this booking has already been submitted.")
+                            st.stop()
 
-                        except Exception as e:
-                            st.error(f"Feedback submission failed: {e}")
+                        feedback_data = {
+                            "booking_id": selected_booking_id,
+                            "sales_person_number": st.session_state.user_mobile,
+                            "session_rating": session_rating,
+                            "feedback_text": feedback_text.strip() if feedback_text.strip() else None
+                        }
+
+                        supabase.table("feedback_sales").insert(feedback_data).execute()
+                        st.success("Feedback submitted successfully.")
+
+                    except Exception as e:
+                        st.error(f"Feedback submission failed: {e}")
             else:
                 st.info("No completed classes available for feedback.")
 
@@ -1137,11 +1161,11 @@ def show_admin_dashboard():
 
         except Exception as e:
             st.error(f"Could not load resource persons: {e}")
-        # -------------------- TAB 5: FEEDBACK --------------------
+            # -------------------- TAB 5: FEEDBACK --------------------
     with tab5:
         st.subheader("Feedback Overview")
 
-        st.markdown("### Sales Feedback")
+        st.markdown("### Sales Person Feedback")
         try:
             sales_feedback_res = (
                 supabase.table("feedback_sales")
@@ -1156,7 +1180,8 @@ def show_admin_dashboard():
                     sales_table.append({
                         "Booking ID": fb.get("booking_id", ""),
                         "Sales Person Number": fb.get("sales_person_number", ""),
-                        "Feedback": fb.get("feedback_text", ""),
+                        "Session Rating": fb.get("session_rating", ""),
+                        "Comments": fb.get("feedback_text", ""),
                         "Created At": fb.get("created_at", "")
                     })
 
@@ -1182,6 +1207,7 @@ def show_admin_dashboard():
                     resource_table.append({
                         "Booking ID": fb.get("booking_id", ""),
                         "Resource Person Number": fb.get("resource_person_number", ""),
+                        "Session Rating": fb.get("session_rating", ""),
                         "Feedback": fb.get("feedback_text", ""),
                         "Remark": fb.get("remark_text", ""),
                         "Created At": fb.get("created_at", "")
