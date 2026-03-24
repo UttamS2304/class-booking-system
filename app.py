@@ -34,6 +34,16 @@ if "user_email" not in st.session_state:
 
 
 # ---------- helpers ----------
+def render_footer():
+    st.markdown(
+        """
+        <hr style="margin-top: 2rem; margin-bottom: 1rem;">
+        <div style="text-align: center; color: gray; font-size: 14px; padding-bottom: 10px;">
+            Designed by Uttam for Cordova Publication Pvt Ltd
+        </div>
+        """,
+        unsafe_allow_html=True
+    )
 def go_to(page_name: str):
     st.session_state.page = page_name
     st.rerun()
@@ -1948,3 +1958,4 @@ elif page == "admin_dashboard":
     show_admin_dashboard()
 else:
     show_home()
+render_footer()
