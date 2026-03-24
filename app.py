@@ -1209,7 +1209,25 @@ def show_admin_dashboard():
         "Reports"
     ])
 
-            # -------------------- TAB 1: ALL BOOKINGS + ZOOM LINK + MARK AS COMPLETED --------------------
+    session_display_map = {
+        "live_class": "Live Class",
+        "product_training": "Product Training",
+        "avrd": "AVRD Session",
+        "workshop": "Workshop"
+    }
+
+    status_display_map = {
+        "pending": "Pending",
+        "approved": "Approved",
+        "rp_assigned": "Resource Assigned",
+        "zoom_sent": "Zoom Link Sent",
+        "completed": "Completed",
+        "feedback_pending": "Feedback Pending",
+        "closed": "Closed",
+        "rejected": "Rejected"
+    }
+
+    # -------------------- TAB 1: ALL BOOKINGS + ACTIONS --------------------
     with tab1:
         st.subheader("All Class Bookings")
 
@@ -1222,24 +1240,6 @@ def show_admin_dashboard():
             )
 
             if bookings_res.data:
-                session_display_map = {
-                    "live_class": "Live Class",
-                    "product_training": "Product Training",
-                    "avrd": "AVRD Session",
-                    "workshop": "Workshop"
-                }
-
-                status_display_map = {
-                    "pending": "Pending",
-                    "approved": "Approved",
-                    "rp_assigned": "RP Assigned",
-                    "zoom_sent": "Zoom Link Sent",
-                    "completed": "Completed",
-                    "feedback_pending": "Feedback Pending",
-                    "closed": "Closed",
-                    "rejected": "Rejected"
-                }
-
                 table_data = []
                 for booking in bookings_res.data:
                     table_data.append({
@@ -1252,6 +1252,7 @@ def show_admin_dashboard():
                             booking.get("session_type", "")
                         ),
                         "School Name": booking.get("school_name", ""),
+                        "Topic": booking.get("topic", ""),
                         "Preferred Date": booking.get("preferred_date", ""),
                         "Preferred Time Slot": booking.get("preferred_time_slot", ""),
                         "Status": status_display_map.get(
@@ -1272,31 +1273,35 @@ def show_admin_dashboard():
 
                 selected_booking_label = st.selectbox(
                     "Select Booking",
-                    list(booking_map.keys())
+                    list(booking_map.keys()),
+                    key="admin_tab1_selected_booking"
                 )
 
                 selected_booking = booking_map[selected_booking_label]
                 booking_id = selected_booking.get("id")
                 current_status = selected_booking.get("status", "")
 
-                st.write(f"**Current Status:** {status_display_map.get(current_status, current_status)}")
+                st.write(
+                    f"**Current Status:** {status_display_map.get(current_status, current_status)}"
+                )
 
                 zoom_link_value = st.text_input(
                     "Zoom Link",
-                    value=selected_booking.get("zoom_link", "") if selected_booking.get("zoom_link") else ""
+                    value=selected_booking.get("zoom_link", "") if selected_booking.get("zoom_link") else "",
+                    key="admin_tab1_zoom_link"
                 )
 
                 col1, col2 = st.columns(2)
 
                 with col1:
-                    if st.button("Send Zoom Link", use_container_width=True):
+                    if st.button("Send Zoom Link", use_container_width=True, key="admin_send_zoom"):
                         try:
                             if not zoom_link_value.strip():
                                 st.error("Please enter Zoom link.")
                                 st.stop()
 
                             supabase.table("bookings").update({
-                                "zoom_link": zoom_link_value,
+                                "zoom_link": zoom_link_value.strip(),
                                 "status": "zoom_sent"
                             }).eq("id", booking_id).execute()
 
@@ -1313,7 +1318,7 @@ def show_admin_dashboard():
                                 subject_line, body = build_zoom_link_email(
                                     selected_booking,
                                     sales_user.get("name", "Sales Person"),
-                                    zoom_link_value
+                                    zoom_link_value.strip()
                                 )
                                 send_email(sales_user["email"], subject_line, body)
 
@@ -1331,7 +1336,7 @@ def show_admin_dashboard():
                                     subject_line, body = build_zoom_link_email(
                                         selected_booking,
                                         rp_user.get("name", "Resource Person"),
-                                        zoom_link_value
+                                        zoom_link_value.strip()
                                     )
                                     send_email(rp_user["email"], subject_line, body)
 
@@ -1342,7 +1347,7 @@ def show_admin_dashboard():
                             st.error(f"Zoom mail failed: {e}")
 
                 with col2:
-                    if st.button("Mark as Completed", use_container_width=True):
+                    if st.button("Mark as Completed", use_container_width=True, key="admin_mark_completed"):
                         try:
                             if current_status not in ["approved", "rp_assigned", "zoom_sent"]:
                                 st.error("Only approved, assigned, or zoom-sent classes can be marked as completed.")
@@ -1363,7 +1368,8 @@ def show_admin_dashboard():
 
         except Exception as e:
             st.error(f"Could not load bookings: {e}")
-        # -------------------- TAB 2: SALES PERSONS MANAGE --------------------
+
+    # -------------------- TAB 2: SALES PERSONS MANAGE --------------------
     with tab2:
         st.subheader("Sales Persons Manage")
 
@@ -1415,7 +1421,8 @@ def show_admin_dashboard():
 
         except Exception as e:
             st.error(f"Could not load sales persons: {e}")
-            # -------------------- TAB 3: CLASS STATUS / APPROVE / REJECT / ASSIGN --------------------
+
+    # -------------------- TAB 3: CLASS STATUS MANAGEMENT --------------------
     with tab3:
         st.subheader("Class Status Management")
 
@@ -1429,34 +1436,23 @@ def show_admin_dashboard():
             )
 
             if pending_res.data:
-                session_display_map = {
-                    "live_class": "Live Class",
-                    "product_training": "Product Training",
-                    "avrd": "AVRD Session",
-                    "workshop": "Workshop"
-                }
-
-                status_display_map = {
-                    "pending": "Pending",
-                    "approved": "Approved",
-                    "rp_assigned": "RP Assigned",
-                    "zoom_sent": "Zoom Link Sent",
-                    "completed": "Completed",
-                    "feedback_pending": "Feedback Pending",
-                    "closed": "Closed",
-                    "rejected": "Rejected"
-                }
-
                 table_data = []
                 for booking in pending_res.data:
                     table_data.append({
                         "Booking ID": booking.get("id", ""),
-                        "Session Type": session_display_map.get(booking.get("session_type"), booking.get("session_type", "")),
+                        "Session Type": session_display_map.get(
+                            booking.get("session_type"),
+                            booking.get("session_type", "")
+                        ),
                         "School Name": booking.get("school_name", ""),
                         "Subject": booking.get("subject", ""),
+                        "Topic": booking.get("topic", ""),
                         "Preferred Date": booking.get("preferred_date", ""),
                         "Preferred Time Slot": booking.get("preferred_time_slot", ""),
-                        "Current Status": status_display_map.get(booking.get("status"), booking.get("status", ""))
+                        "Current Status": status_display_map.get(
+                            booking.get("status"),
+                            booking.get("status", "")
+                        )
                     })
 
                 st.dataframe(table_data, use_container_width=True, hide_index=True)
@@ -1470,7 +1466,8 @@ def show_admin_dashboard():
 
                 selected_booking_label = st.selectbox(
                     "Select Booking to Manage",
-                    list(booking_map.keys())
+                    list(booking_map.keys()),
+                    key="admin_tab3_selected_booking"
                 )
 
                 selected_booking = booking_map[selected_booking_label]
@@ -1486,7 +1483,8 @@ def show_admin_dashboard():
                     if available_rp_options:
                         selected_rp_label = st.selectbox(
                             "Select Available Resource Person",
-                            list(available_rp_options.keys())
+                            list(available_rp_options.keys()),
+                            key="admin_tab3_selected_rp"
                         )
                     else:
                         st.warning("No resource person is available for this date and time slot.")
@@ -1494,9 +1492,9 @@ def show_admin_dashboard():
                 col1, col2, col3 = st.columns(3)
 
                 with col1:
-                    if st.button("Approve", use_container_width=True):
+                    if st.button("Approve", use_container_width=True, key="admin_approve_booking"):
                         try:
-                            # Live/Product => auto assign
+                            # Live Class / Product Training => auto assign
                             if session_type in ["live_class", "product_training"]:
                                 assigned_number = auto_assign_rp_for_subject_booking(selected_booking)
 
@@ -1552,7 +1550,7 @@ def show_admin_dashboard():
                                 st.success("Booking approved and resource person assigned automatically.")
                                 st.rerun()
 
-                            # AVRD/Workshop => only approve
+                            # AVRD / Workshop => approve only
                             else:
                                 supabase.table("bookings").update({
                                     "status": "approved"
@@ -1565,7 +1563,7 @@ def show_admin_dashboard():
                             st.error(f"Approve failed: {e}")
 
                 with col2:
-                    if st.button("Reject", use_container_width=True):
+                    if st.button("Reject", use_container_width=True, key="admin_reject_booking"):
                         try:
                             supabase.table("bookings").update({
                                 "status": "rejected"
@@ -1579,7 +1577,7 @@ def show_admin_dashboard():
 
                 with col3:
                     if session_type in ["avrd", "workshop"]:
-                        if st.button("Assign RP Only", use_container_width=True):
+                        if st.button("Assign RP Only", use_container_width=True, key="admin_assign_rp_only"):
                             try:
                                 if not selected_rp_label:
                                     st.error("Please select a resource person.")
@@ -1623,14 +1621,15 @@ def show_admin_dashboard():
                             except Exception as e:
                                 st.error(f"RP assignment failed: {e}")
                     else:
-                        st.info("Auto-assigned on approval.")
+                        st.info("Resource person is auto-assigned on approval.")
 
             else:
                 st.info("No pending or approved bookings found.")
 
         except Exception as e:
             st.error(f"Could not load class status section: {e}")
-        # -------------------- TAB 4: RESOURCE PERSON MANAGE --------------------
+
+    # -------------------- TAB 4: RESOURCE PERSON MANAGE --------------------
     with tab4:
         st.subheader("Resource Person Manage")
 
@@ -1682,7 +1681,8 @@ def show_admin_dashboard():
 
         except Exception as e:
             st.error(f"Could not load resource persons: {e}")
-            # -------------------- TAB 5: FEEDBACK --------------------
+
+    # -------------------- TAB 5: FEEDBACK --------------------
     with tab5:
         st.subheader("Feedback Overview")
 
@@ -1740,7 +1740,8 @@ def show_admin_dashboard():
 
         except Exception as e:
             st.error(f"Could not load resource feedback: {e}")
-        # -------------------- TAB 6: REPORTS --------------------
+
+    # -------------------- TAB 6: REPORTS --------------------
     with tab6:
         st.subheader("Reports")
 
@@ -1884,6 +1885,16 @@ def get_brand_display_name(brand_type):
     return "Cordova"
 
 
+def get_session_display_name(session_type):
+    session_map = {
+        "live_class": "Live Class",
+        "product_training": "Product Training",
+        "avrd": "AVRD Session",
+        "workshop": "Workshop"
+    }
+    return session_map.get(session_type, session_type)
+
+
 def send_email(to_email, subject, body):
     sender_email = st.secrets["SENDER_EMAIL"]
     sender_password = st.secrets["SENDER_PASSWORD"]
@@ -1892,7 +1903,6 @@ def send_email(to_email, subject, body):
     msg["From"] = sender_email
     msg["To"] = to_email
     msg["Subject"] = subject
-
     msg.attach(MIMEText(body, "plain"))
 
     server = smtplib.SMTP("smtp.gmail.com", 587)
@@ -1904,11 +1914,12 @@ def send_email(to_email, subject, body):
 
 def build_sales_confirmation_email(booking, sales_person_name):
     brand_name = get_brand_display_name(booking.get("brand_type"))
-    session_type = booking.get("session_type", "")
+    session_type = get_session_display_name(booking.get("session_type", ""))
     school_name = booking.get("school_name", "")
     grade = booking.get("school_grade", "")
-    subject = booking.get("subject", "")
-    class_standard = booking.get("class_standard", "")
+    subject = booking.get("subject", "") or ""
+    class_standard = booking.get("class_standard", "") or ""
+    topic = booking.get("topic", "") or ""
     date = booking.get("preferred_date", "")
     time_slot = booking.get("preferred_time_slot", "")
     curriculum = booking.get("curriculum", "")
@@ -1929,7 +1940,8 @@ Session Type: {session_type}
 School Name: {school_name}
 Grade: {grade}
 Subject: {subject}
-Class: {class_standard}
+Class / Standard: {class_standard}
+Topic: {topic}
 Date: {date}
 Time Slot: {time_slot}
 Curriculum: {curriculum}
@@ -1949,11 +1961,12 @@ Admin
 
 def build_resource_assignment_email(booking, resource_person_name):
     brand_name = get_brand_display_name(booking.get("brand_type"))
-    session_type = booking.get("session_type", "")
+    session_type = get_session_display_name(booking.get("session_type", ""))
     school_name = booking.get("school_name", "")
     grade = booking.get("school_grade", "")
-    subject = booking.get("subject", "")
-    class_standard = booking.get("class_standard", "")
+    subject = booking.get("subject", "") or ""
+    class_standard = booking.get("class_standard", "") or ""
+    topic = booking.get("topic", "") or ""
     date = booking.get("preferred_date", "")
     time_slot = booking.get("preferred_time_slot", "")
     curriculum = booking.get("curriculum", "")
@@ -1974,7 +1987,8 @@ Session Type: {session_type}
 School Name: {school_name}
 Grade: {grade}
 Subject: {subject}
-Class: {class_standard}
+Class / Standard: {class_standard}
+Topic: {topic}
 Date: {date}
 Time Slot: {time_slot}
 Curriculum: {curriculum}
@@ -1994,6 +2008,7 @@ Admin
 
 def build_zoom_link_email(booking, recipient_name, zoom_link):
     brand_name = get_brand_display_name(booking.get("brand_type"))
+    session_type = get_session_display_name(booking.get("session_type", ""))
     subject_line = f"Zoom Link for Your Session - {brand_name}"
 
     body = f"""Dear {recipient_name},
@@ -2002,8 +2017,9 @@ Greetings from {brand_name}!
 
 Please find below the Zoom link for your upcoming session:
 
-Session Type: {booking.get("session_type", "")}
+Session Type: {session_type}
 School Name: {booking.get("school_name", "")}
+Topic: {booking.get("topic", "") or ""}
 Date: {booking.get("preferred_date", "")}
 Time Slot: {booking.get("preferred_time_slot", "")}
 
@@ -2017,7 +2033,7 @@ Admin
 {brand_name}
 """
     return subject_line, body
-    
+
 
 # ---------- router ----------
 page = st.session_state.page
@@ -2040,4 +2056,3 @@ elif page == "admin_dashboard":
     show_admin_dashboard()
 else:
     show_home()
-render_footer()
