@@ -6,23 +6,30 @@ from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 import pandas as pd
 
-st.set_page_config(page_title="Class Booking System", layout="wide")
+st.set_page_config(
+    page_title="Class Booking System",
+    layout="wide",
+    initial_sidebar_state="collapsed"
+)
+
+
 def hide_streamlit_chrome():
     st.markdown(
         """
         <style>
-        /* Main Streamlit menu and header */
-        header {visibility: hidden;}
         #MainMenu {visibility: hidden;}
         footer {visibility: hidden;}
+        header {visibility: hidden;}
 
-        /* Top decoration line */
-        [data-testid="stDecoration"] {
-            display: none;
+        [data-testid="stToolbar"] {
+            display: none !important;
         }
 
-        /* Toolbar / deploy / fork / github style elements */
-        [data-testid="stToolbar"] {
+        [data-testid="stDecoration"] {
+            display: none !important;
+        }
+
+        [data-testid="stStatusWidget"] {
             display: none !important;
         }
 
@@ -30,15 +37,31 @@ def hide_streamlit_chrome():
             display: none !important;
         }
 
-        /* Optional: reduce top padding */
         .block-container {
             padding-top: 2rem;
+            padding-bottom: 2rem;
+        }
+
+        /* Cleaner buttons */
+        div.stButton > button {
+            border-radius: 10px;
+            height: 44px;
+            font-weight: 600;
+        }
+
+        /* Input rounding */
+        div[data-baseweb="select"] > div,
+        div[data-baseweb="input"] > div,
+        textarea {
+            border-radius: 10px !important;
         }
         </style>
         """,
         unsafe_allow_html=True
     )
-    hide_streamlit_chrome()
+
+
+hide_streamlit_chrome()
 
 SUPABASE_URL = st.secrets["SUPABASE_URL"]
 SUPABASE_KEY = st.secrets["SUPABASE_KEY"]
@@ -66,17 +89,18 @@ if "user_email" not in st.session_state:
 
 
 # ---------- helpers ----------
-
 def render_footer():
     st.markdown(
         """
         <hr style="margin-top: 2rem; margin-bottom: 1rem;">
-        <div style="text-align: center; color: gray; font-size: 14px; padding-bottom: 10px;">
+        <div style="text-align: center; color: #6b7280; font-size: 14px; padding-bottom: 10px;">
             Designed by Uttam for Cordova Publication Pvt Ltd
         </div>
         """,
         unsafe_allow_html=True
     )
+
+
 def go_to(page_name: str):
     st.session_state.page = page_name
     st.rerun()
@@ -91,7 +115,6 @@ def logout():
     st.session_state.page = "home"
     st.rerun()
 
-
 def show_home():
     st.title("Class Booking System")
     st.write("Welcome to the class booking platform.")
@@ -102,19 +125,21 @@ def show_home():
     with col1:
         st.subheader("Login")
         st.write("Already registered? Login here.")
-        if st.button("Go to Login", use_container_width=True):
+        if st.button("Go to Login", use_container_width=True, key="home_login"):
             go_to("login")
 
     with col2:
         st.subheader("Register")
         st.write("New user? Create an account.")
-        if st.button("Go to Register", use_container_width=True):
+        if st.button("Go to Register", use_container_width=True, key="home_register"):
             go_to("register")
+
+    render_footer()
 
 
 def show_register_choice():
     st.title("Registration")
-    st.write("Choose your role")
+    st.write("Choose your role to continue.")
     st.markdown("---")
 
     col1, col2 = st.columns(2)
@@ -122,23 +147,25 @@ def show_register_choice():
     with col1:
         st.subheader("Sales Person")
         st.write("Register as a sales person for Creative Kids or Little Genius.")
-        if st.button("Register as Sales Person", use_container_width=True):
+        if st.button("Register as Sales Person", use_container_width=True, key="register_sales"):
             go_to("sales_register")
 
     with col2:
         st.subheader("Resource Person")
         st.write("Register as a resource person and select your subjects.")
-        if st.button("Register as Resource Person", use_container_width=True):
+        if st.button("Register as Resource Person", use_container_width=True, key="register_resource"):
             go_to("resource_register")
 
     st.markdown("---")
-    if st.button("Back to Home"):
+    if st.button("Back to Home", use_container_width=True, key="register_back_home"):
         go_to("home")
+
+    render_footer()
 
 
 def show_login():
     st.title("Login")
-    st.write("Login with your email or mobile number")
+    st.write("Login using your email address or mobile number.")
     st.markdown("---")
 
     identifier = st.text_input("Email or Mobile Number")
@@ -147,16 +174,16 @@ def show_login():
     col1, col2 = st.columns(2)
 
     with col1:
-        if st.button("Login", use_container_width=True):
-            if not identifier or not password:
-                st.error("Please enter identifier and password.")
-                return
+        if st.button("Login", use_container_width=True, key="login_button"):
+            if not identifier.strip() or not password.strip():
+                st.error("Please enter your email/mobile number and password.")
+                st.stop()
 
             try:
                 result = (
                     supabase.table("users")
                     .select("*")
-                    .or_(f"email.eq.{identifier},mobile_number.eq.{identifier}")
+                    .or_(f"email.eq.{identifier.strip()},mobile_number.eq.{identifier.strip()}")
                     .eq("password", password)
                     .execute()
                 )
@@ -185,29 +212,32 @@ def show_login():
                 st.error(f"Login failed: {e}")
 
     with col2:
-        if st.button("Back to Home", use_container_width=True):
+        if st.button("Back to Home", use_container_width=True, key="login_back_home"):
             go_to("home")
+
+    render_footer()
 
 
 def show_sales_register():
     st.title("Sales Person Registration")
+    st.write("Please complete the form below to register as a sales person.")
     st.markdown("---")
 
-    with st.form("sales_registration_form"):
-        brand_options = {
-            "Creative Kids": "creative_kids",
-            "Little Genius": "little_genius"
-}
+    brand_options = {
+        "Creative Kids": "creative_kids",
+        "Little Genius": "little_genius"
+    }
 
+    with st.form("sales_registration_form"):
         selected_brand_label = st.selectbox(
             "Select Brand",
             list(brand_options.keys())
-)
-
+        )
         brand = brand_options[selected_brand_label]
-        name = st.text_input("Name")
+
+        name = st.text_input("Full Name")
         mobile = st.text_input("Mobile Number")
-        email = st.text_input("Email")
+        email = st.text_input("Email Address")
         area = st.text_input("Area")
         designation = st.text_input("Designation")
         password = st.text_input("Password", type="password")
@@ -216,33 +246,33 @@ def show_sales_register():
 
     col1, col2 = st.columns(2)
     with col1:
-        if st.button("Back to Register"):
+        if st.button("Back to Register", use_container_width=True, key="sales_reg_back_register"):
             go_to("register")
     with col2:
-        if st.button("Back to Home"):
+        if st.button("Back to Home", use_container_width=True, key="sales_reg_back_home"):
             go_to("home")
 
     if submitted:
-        if not name or not mobile or not email or not area or not designation or not password:
+        if not name.strip() or not mobile.strip() or not email.strip() or not area.strip() or not designation.strip() or not password.strip():
             st.error("Please fill all fields.")
-            return
+            st.stop()
 
         try:
             existing_user = (
                 supabase.table("users")
                 .select("id")
-                .or_(f"email.eq.{email},mobile_number.eq.{mobile}")
+                .or_(f"email.eq.{email.strip()},mobile_number.eq.{mobile.strip()}")
                 .execute()
             )
 
             if existing_user.data:
-                st.error("User with same email or mobile already exists.")
-                return
+                st.error("A user with the same email or mobile number already exists.")
+                st.stop()
 
             user_data = {
-                "name": name,
-                "mobile_number": mobile,
-                "email": email,
+                "name": name.strip(),
+                "mobile_number": mobile.strip(),
+                "email": email.strip(),
                 "role": "sales",
                 "password": password,
                 "created_at": datetime.utcnow().isoformat()
@@ -252,92 +282,100 @@ def show_sales_register():
 
             if not user_res.data:
                 st.error("Unable to create user.")
-                return
+                st.stop()
 
             user_id = user_res.data[0]["id"]
 
             sales_data = {
                 "user_id": user_id,
-                "mobile_number": mobile,
+                "mobile_number": mobile.strip(),
                 "brand_type": brand,
-                "area": area,
-                "designation": designation
+                "area": area.strip(),
+                "designation": designation.strip()
             }
 
             supabase.table("sales_profiles").insert(sales_data).execute()
             st.success("Sales person registered successfully.")
-            st.info("Now go to Login page and login.")
+            st.info("You can now login using your email or mobile number.")
+
         except Exception as e:
             st.error(f"Registration failed: {e}")
+
+    render_footer()
 
 
 def show_resource_register():
     st.title("Resource Person Registration")
+    st.write("Please complete the form below to register as a resource person.")
     st.markdown("---")
 
-    # Placeholder subjects; baad me final list replace kar dena
     subject_options = [
-    "Mathematics",
-    "Hindi",
-    "English",
-    "Hindi Vyakaran",
-    "English Grammar",
-    "Science",
-    "Social Science",
-    "Computer",
-    "General Knowledge",
-    "Pre Primary",
-    "Pre Primary Hindi",
-    "Environmental Science"
-]
+        "Mathematics",
+        "Hindi",
+        "English",
+        "Hindi Vyakaran",
+        "English Grammar",
+        "Science",
+        "Social Science",
+        "Computer",
+        "General Knowledge",
+        "Pre Primary",
+        "Pre Primary Hindi",
+        "Environment Science"
+    ]
 
     with st.form("resource_registration_form"):
-        name = st.text_input("Name")
+        name = st.text_input("Full Name")
         mobile = st.text_input("Mobile Number")
-        email = st.text_input("Email")
-        # Subject 1 (mandatory)
+        email = st.text_input("Email Address")
+
         subject_1 = st.selectbox("Subject 1 *", ["Select Subject"] + subject_options)
-        # Subject 2 (optional)
+
         subject_2_options = ["None"] + [s for s in subject_options if s != subject_1]
         subject_2 = st.selectbox("Subject 2 (Optional)", subject_2_options)
-        # Subject 3 (optional)
+
         subject_3_options = ["None"] + [
             s for s in subject_options if s not in [subject_1, subject_2]
-]
-        subject_3 = st.selectbox("Subject 3 (Optional)", subject_3_options)        
+        ]
+        subject_3 = st.selectbox("Subject 3 (Optional)", subject_3_options)
+
         password = st.text_input("Password", type="password")
 
         submitted = st.form_submit_button("Register", use_container_width=True)
 
     col1, col2 = st.columns(2)
     with col1:
-        if st.button("Back to Register"):
+        if st.button("Back to Register", use_container_width=True, key="resource_reg_back_register"):
             go_to("register")
     with col2:
-        if st.button("Back to Home"):
+        if st.button("Back to Home", use_container_width=True, key="resource_reg_back_home"):
             go_to("home")
 
     if submitted:
-        if not name or not mobile or not email or not password:
+        if not name.strip() or not mobile.strip() or not email.strip() or not password.strip():
             st.error("Please fill all required fields.")
-            return
+            st.stop()
+
+        if subject_1 == "Select Subject":
+            st.error("Subject 1 is required.")
+            st.stop()
 
         try:
             existing_user = (
                 supabase.table("users")
                 .select("id")
-                .or_(f"email.eq.{email},mobile_number.eq.{mobile}")
+                .or_(f"email.eq.{email.strip()},mobile_number.eq.{mobile.strip()}")
                 .execute()
             )
 
             if existing_user.data:
-                st.error("User with same email or mobile already exists.")
-                return
+                st.error("A user with the same email or mobile number already exists.")
+                st.stop()
 
             user_data = {
-                "name": name,
-                "mobile_number": mobile,
-                "email": email,
+                "name": name.strip(),
+                "mobile_number": mobile.strip(),
+                "email": email.strip(),
                 "role": "resource",
                 "password": password,
                 "created_at": datetime.utcnow().isoformat()
@@ -347,24 +385,28 @@ def show_resource_register():
 
             if not user_res.data:
                 st.error("Unable to create user.")
-                return
+                st.stop()
 
             user_id = user_res.data[0]["id"]
 
             resource_data = {
                 "user_id": user_id,
-                "mobile_number": mobile,
+                "mobile_number": mobile.strip(),
                 "subject_1": subject_1,
-                "subject_2": subject_2,
-                "subject_3": subject_3
+                "subject_2": None if subject_2 == "None" else subject_2,
+                "subject_3": None if subject_3 == "None" else subject_3
             }
 
             supabase.table("resource_profiles").insert(resource_data).execute()
             st.success("Resource person registered successfully.")
-            st.info("Now go to Login page and login.")
+            st.info("You can now login using your email or mobile number.")
+
         except Exception as e:
             st.error(f"Registration failed: {e}")
-            
+
+    render_footer()
+
+
 def get_time_slots(session_type):
     if session_type in ["live_class", "product_training"]:
         return [
@@ -526,7 +568,25 @@ def show_sales_dashboard():
         "Add Feedback"
     ])
 
-        # -------------------- TAB 1: BOOK CLASS --------------------
+    session_display_map = {
+        "live_class": "Live Class",
+        "product_training": "Product Training",
+        "avrd": "AVRD Session",
+        "workshop": "Workshop"
+    }
+
+    status_display_map = {
+        "pending": "Pending",
+        "approved": "Approved",
+        "rp_assigned": "Resource Assigned",
+        "zoom_sent": "Zoom Link Sent",
+        "completed": "Completed",
+        "feedback_pending": "Feedback Pending",
+        "closed": "Closed",
+        "rejected": "Rejected"
+    }
+
+    # -------------------- TAB 1: BOOK CLASS --------------------
     with tab1:
         st.subheader("Book a Class")
 
@@ -681,10 +741,12 @@ def show_sales_dashboard():
 
                 supabase.table("bookings").insert(booking_data).execute()
                 st.success("Class booking request submitted successfully.")
+                st.rerun()
 
             except Exception as e:
                 st.error(f"Booking failed: {e}")
-        # -------------------- TAB 2: CLASS STATUS --------------------
+
+    # -------------------- TAB 2: CLASS STATUS --------------------
     with tab2:
         st.subheader("Class Status")
 
@@ -700,31 +762,19 @@ def show_sales_dashboard():
             if status_res.data:
                 table_data = []
 
-                session_display_map = {
-                    "live_class": "Live Class",
-                    "product_training": "Product Training",
-                    "avrd": "AVRD Session",
-                    "workshop": "Workshop"
-                }
-
-                status_display_map = {
-                    "pending": "Pending",
-                    "approved": "Approved",
-                    "rp_assigned": "RP Assigned",
-                    "zoom_sent": "Zoom Link Sent",
-                    "completed": "Completed",
-                    "feedback_pending": "Feedback Pending",
-                    "closed": "Closed",
-                    "rejected": "Rejected"
-                }
-
                 for booking in status_res.data:
                     table_data.append({
-                        "Session Type": session_display_map.get(booking.get("session_type"), booking.get("session_type", "")),
+                        "Session Type": session_display_map.get(
+                            booking.get("session_type"),
+                            booking.get("session_type", "")
+                        ),
                         "School Name": booking.get("school_name", ""),
-                        "Date": booking.get("preferred_date", ""),
-                        "Time Slot": booking.get("preferred_time_slot", ""),
-                        "Status": status_display_map.get(booking.get("status"), booking.get("status", ""))
+                        "Preferred Date": booking.get("preferred_date", ""),
+                        "Preferred Time Slot": booking.get("preferred_time_slot", ""),
+                        "Status": status_display_map.get(
+                            booking.get("status"),
+                            booking.get("status", "")
+                        )
                     })
 
                 st.dataframe(table_data, use_container_width=True, hide_index=True)
@@ -733,9 +783,10 @@ def show_sales_dashboard():
 
         except Exception as e:
             st.error(f"Could not load class status: {e}")
-        # -------------------- TAB 3: ALL CLASSES --------------------
+
+    # -------------------- TAB 3: ALL CLASSES --------------------
     with tab3:
-        st.subheader("All Classes")
+        st.subheader("All Booked Classes")
 
         try:
             all_res = (
@@ -749,37 +800,26 @@ def show_sales_dashboard():
             if all_res.data:
                 table_data = []
 
-                session_display_map = {
-                    "live_class": "Live Class",
-                    "product_training": "Product Training",
-                    "avrd": "AVRD Session",
-                    "workshop": "Workshop"
-                }
-
-                status_display_map = {
-                    "pending": "Pending",
-                    "approved": "Approved",
-                    "rp_assigned": "RP Assigned",
-                    "zoom_sent": "Zoom Link Sent",
-                    "completed": "Completed",
-                    "feedback_pending": "Feedback Pending",
-                    "closed": "Closed",
-                    "rejected": "Rejected"
-                }
-
                 for booking in all_res.data:
                     table_data.append({
-                        "Session Type": session_display_map.get(booking.get("session_type"), booking.get("session_type", "")),
+                        "Session Type": session_display_map.get(
+                            booking.get("session_type"),
+                            booking.get("session_type", "")
+                        ),
                         "School Name": booking.get("school_name", ""),
                         "School Grade": booking.get("school_grade", ""),
                         "Subject": booking.get("subject", ""),
                         "Class / Standard": booking.get("class_standard", ""),
+                        "Topic": booking.get("topic", ""),
                         "Preferred Date": booking.get("preferred_date", ""),
                         "Preferred Time Slot": booking.get("preferred_time_slot", ""),
                         "Curriculum": booking.get("curriculum", ""),
                         "Book Title": booking.get("book_title", ""),
                         "Area / Location": booking.get("area_location", ""),
-                        "Status": status_display_map.get(booking.get("status"), booking.get("status", ""))
+                        "Status": status_display_map.get(
+                            booking.get("status"),
+                            booking.get("status", "")
+                        )
                     })
 
                 st.dataframe(table_data, use_container_width=True, hide_index=True)
@@ -788,7 +828,8 @@ def show_sales_dashboard():
 
         except Exception as e:
             st.error(f"Could not load classes: {e}")
-        # -------------------- TAB 4: ADD FEEDBACK --------------------
+
+    # -------------------- TAB 4: ADD FEEDBACK --------------------
     with tab4:
         st.subheader("Add Feedback")
 
@@ -829,7 +870,7 @@ def show_sales_dashboard():
 
                 feedback_text = st.text_area("Comments (Optional)")
 
-                if st.button("Submit Feedback", use_container_width=True):
+                if st.button("Submit Feedback", use_container_width=True, key="sales_feedback_submit"):
                     selected_booking_id = booking_options[selected_booking_label]
 
                     try:
@@ -854,6 +895,7 @@ def show_sales_dashboard():
 
                         supabase.table("feedback_sales").insert(feedback_data).execute()
                         st.success("Feedback submitted successfully.")
+                        st.rerun()
 
                     except Exception as e:
                         st.error(f"Feedback submission failed: {e}")
@@ -864,8 +906,10 @@ def show_sales_dashboard():
             st.error(f"Could not load feedback section: {e}")
 
     st.markdown("---")
-    if st.button("Logout"):
+    if st.button("Logout", use_container_width=True, key="sales_logout"):
         logout()
+
+    render_footer()
 def show_resource_dashboard():
     st.title("Resource Dashboard")
     st.write(f"Welcome, {st.session_state.user_name}")
@@ -877,6 +921,24 @@ def show_resource_dashboard():
         "Availability",
         "Add Remark / Feedback"
     ])
+
+    session_display_map = {
+        "live_class": "Live Class",
+        "product_training": "Product Training",
+        "avrd": "AVRD Session",
+        "workshop": "Workshop"
+    }
+
+    status_display_map = {
+        "pending": "Pending",
+        "approved": "Approved",
+        "rp_assigned": "Resource Assigned",
+        "zoom_sent": "Zoom Link Sent",
+        "completed": "Completed",
+        "feedback_pending": "Feedback Pending",
+        "closed": "Closed",
+        "rejected": "Rejected"
+    }
 
     # -------------------- TAB 1: UPCOMING CLASSES --------------------
     with tab1:
@@ -893,38 +955,27 @@ def show_resource_dashboard():
             )
 
             if upcoming_res.data:
-                session_display_map = {
-                    "live_class": "Live Class",
-                    "product_training": "Product Training",
-                    "avrd": "AVRD Session",
-                    "workshop": "Workshop"
-                }
-
-                status_display_map = {
-                    "pending": "Pending",
-                    "approved": "Approved",
-                    "rp_assigned": "RP Assigned",
-                    "zoom_sent": "Zoom Link Sent",
-                    "completed": "Completed",
-                    "feedback_pending": "Feedback Pending",
-                    "closed": "Closed",
-                    "rejected": "Rejected"
-                }
-
                 table_data = []
                 for booking in upcoming_res.data:
                     table_data.append({
-                        "Session Type": session_display_map.get(booking.get("session_type"), booking.get("session_type", "")),
+                        "Session Type": session_display_map.get(
+                            booking.get("session_type"),
+                            booking.get("session_type", "")
+                        ),
                         "School Name": booking.get("school_name", ""),
                         "School Grade": booking.get("school_grade", ""),
                         "Subject": booking.get("subject", ""),
                         "Class / Standard": booking.get("class_standard", ""),
+                        "Topic": booking.get("topic", ""),
                         "Preferred Date": booking.get("preferred_date", ""),
                         "Preferred Time Slot": booking.get("preferred_time_slot", ""),
                         "Curriculum": booking.get("curriculum", ""),
                         "Book Title": booking.get("book_title", ""),
                         "Area / Location": booking.get("area_location", ""),
-                        "Status": status_display_map.get(booking.get("status"), booking.get("status", "")),
+                        "Status": status_display_map.get(
+                            booking.get("status"),
+                            booking.get("status", "")
+                        ),
                         "Zoom Link": booking.get("zoom_link", "")
                     })
 
@@ -950,24 +1001,6 @@ def show_resource_dashboard():
             )
 
             if completed_res.data:
-                session_display_map = {
-                    "live_class": "Live Class",
-                    "product_training": "Product Training",
-                    "avrd": "AVRD Session",
-                    "workshop": "Workshop"
-                }
-
-                status_display_map = {
-                    "pending": "Pending",
-                    "approved": "Approved",
-                    "rp_assigned": "RP Assigned",
-                    "zoom_sent": "Zoom Link Sent",
-                    "completed": "Completed",
-                    "feedback_pending": "Feedback Pending",
-                    "closed": "Closed",
-                    "rejected": "Rejected"
-                }
-
                 table_data = []
 
                 for booking in completed_res.data:
@@ -990,11 +1023,18 @@ def show_resource_dashboard():
                         pass
 
                     table_data.append({
-                        "Session Type": session_display_map.get(booking.get("session_type"), booking.get("session_type", "")),
+                        "Session Type": session_display_map.get(
+                            booking.get("session_type"),
+                            booking.get("session_type", "")
+                        ),
                         "School Name": booking.get("school_name", ""),
+                        "Topic": booking.get("topic", ""),
                         "Preferred Date": booking.get("preferred_date", ""),
                         "Preferred Time Slot": booking.get("preferred_time_slot", ""),
-                        "Status": status_display_map.get(booking.get("status"), booking.get("status", "")),
+                        "Status": status_display_map.get(
+                            booking.get("status"),
+                            booking.get("status", "")
+                        ),
                         "Sales Rating": sales_rating,
                         "Sales Feedback": sales_feedback
                     })
@@ -1008,16 +1048,22 @@ def show_resource_dashboard():
 
     # -------------------- TAB 3: AVAILABILITY --------------------
     with tab3:
-        st.subheader("Mark Availability / Unavailability")
+        st.subheader("Availability Management")
 
         with st.form("availability_form"):
             availability_date = st.date_input("Date")
             start_time = st.time_input("Start Time")
             end_time = st.time_input("End Time")
-            availability_type = st.selectbox("Type", ["available", "unavailable"])
-            notes = st.text_area("Notes")
+            availability_type = st.selectbox(
+                "Availability Type",
+                ["available", "unavailable"]
+            )
+            notes = st.text_area("Notes (Optional)")
 
-            availability_submitted = st.form_submit_button("Save Availability", use_container_width=True)
+            availability_submitted = st.form_submit_button(
+                "Save Availability",
+                use_container_width=True
+            )
 
         if availability_submitted:
             try:
@@ -1027,16 +1073,17 @@ def show_resource_dashboard():
                     "start_time": str(start_time),
                     "end_time": str(end_time),
                     "type": availability_type,
-                    "notes": notes
+                    "notes": notes.strip() if notes.strip() else None
                 }
 
                 supabase.table("resource_availability").insert(availability_data).execute()
                 st.success("Availability saved successfully.")
                 st.rerun()
+
             except Exception as e:
                 st.error(f"Could not save availability: {e}")
 
-        st.markdown("### Your Availability Records")
+        st.markdown("### Availability Records")
 
         try:
             availability_res = (
@@ -1107,7 +1154,7 @@ def show_resource_dashboard():
                 feedback_text = st.text_area("Feedback (Optional)")
                 remark_text = st.text_area("Remark (Optional)")
 
-                if st.button("Submit Remark / Feedback", use_container_width=True):
+                if st.button("Submit Remark / Feedback", use_container_width=True, key="resource_feedback_submit"):
                     selected_booking_id = booking_options[selected_booking_label]
 
                     try:
@@ -1144,8 +1191,10 @@ def show_resource_dashboard():
             st.error(f"Could not load remark section: {e}")
 
     st.markdown("---")
-    if st.button("Logout"):
+    if st.button("Logout", use_container_width=True, key="resource_logout"):
         logout()
+
+    render_footer()
 def show_admin_dashboard():
     st.title("Admin Dashboard")
     st.write(f"Welcome, {st.session_state.user_name}")
