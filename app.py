@@ -7,6 +7,38 @@ from email.mime.multipart import MIMEMultipart
 import pandas as pd
 
 st.set_page_config(page_title="Class Booking System", layout="wide")
+def hide_streamlit_chrome():
+    st.markdown(
+        """
+        <style>
+        /* Main Streamlit menu and header */
+        header {visibility: hidden;}
+        #MainMenu {visibility: hidden;}
+        footer {visibility: hidden;}
+
+        /* Top decoration line */
+        [data-testid="stDecoration"] {
+            display: none;
+        }
+
+        /* Toolbar / deploy / fork / github style elements */
+        [data-testid="stToolbar"] {
+            display: none !important;
+        }
+
+        [data-testid="stHeader"] {
+            display: none !important;
+        }
+
+        /* Optional: reduce top padding */
+        .block-container {
+            padding-top: 2rem;
+        }
+        </style>
+        """,
+        unsafe_allow_html=True
+    )
+    hide_streamlit_chrome()
 
 SUPABASE_URL = st.secrets["SUPABASE_URL"]
 SUPABASE_KEY = st.secrets["SUPABASE_KEY"]
@@ -34,6 +66,7 @@ if "user_email" not in st.session_state:
 
 
 # ---------- helpers ----------
+
 def render_footer():
     st.markdown(
         """
