@@ -38,46 +38,76 @@ def hide_streamlit_chrome():
         }
 
         .block-container {
-            padding-top: 1.5rem;
+            padding-top: 2rem;
             padding-bottom: 2rem;
-            max-width: 1350px;
+            max-width: 1200px;
+        }
+
+        html, body, [class*="css"] {
+            font-family: "Segoe UI", sans-serif;
+        }
+
+        .stApp {
+            background: linear-gradient(135deg, #0f172a 0%, #111827 100%);
         }
 
         .main-title {
-            font-size: 2rem;
+            font-size: 2.4rem;
             font-weight: 700;
-            margin-bottom: 0.25rem;
-            color: #111827;
+            margin-bottom: 0.3rem;
+            color: #f8fafc;
+            letter-spacing: -0.5px;
         }
 
         .sub-title {
-            color: #6b7280;
-            font-size: 0.98rem;
-            margin-bottom: 1rem;
+            color: #cbd5e1;
+            font-size: 1rem;
+            margin-bottom: 1.5rem;
         }
 
         .info-card {
-            background: linear-gradient(135deg, #f8fafc 0%, #eef2ff 100%);
-            border: 1px solid #e5e7eb;
-            border-radius: 16px;
-            padding: 1rem 1.1rem;
-            box-shadow: 0 4px 14px rgba(0, 0, 0, 0.04);
-            margin-bottom: 1rem;
+            background: rgba(255, 255, 255, 0.06);
+            border: 1px solid rgba(255, 255, 255, 0.12);
+            border-radius: 18px;
+            padding: 1.4rem 1.2rem;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.22);
+            backdrop-filter: blur(8px);
+            min-height: 150px;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            margin-bottom: 0.9rem;
         }
 
-        .metric-card {
-            background: #ffffff;
-            border: 1px solid #e5e7eb;
-            border-radius: 14px;
-            padding: 0.8rem 1rem;
-            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.04);
+        .info-card h4 {
+            margin: 0 0 0.55rem 0;
+            color: #ffffff;
+            font-size: 1.2rem;
+            font-weight: 700;
+        }
+
+        .info-card p {
+            margin: 0;
+            color: #e5e7eb;
+            font-size: 0.98rem;
+            line-height: 1.5;
         }
 
         div.stButton > button {
-            border-radius: 10px;
-            height: 44px;
-            font-weight: 600;
-            border: 1px solid #d1d5db;
+            border-radius: 12px;
+            height: 48px;
+            font-weight: 700;
+            font-size: 1rem;
+            border: 1px solid #3b82f6;
+            background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%);
+            color: white;
+            transition: all 0.2s ease-in-out;
+        }
+
+        div.stButton > button:hover {
+            border-color: #60a5fa;
+            background: linear-gradient(135deg, #1d4ed8 0%, #1e40af 100%);
+            color: white;
         }
 
         div[data-baseweb="select"] > div,
@@ -89,14 +119,13 @@ def hide_streamlit_chrome():
         }
 
         div[data-testid="stDataFrame"] {
-            border: 1px solid #e5e7eb;
+            border: 1px solid #334155;
             border-radius: 14px;
             overflow: hidden;
         }
 
-        .section-divider {
-            margin-top: 0.8rem;
-            margin-bottom: 1rem;
+        hr {
+            border-color: rgba(255, 255, 255, 0.12) !important;
         }
         </style>
         """,
@@ -176,12 +205,16 @@ def render_header(title: str, subtitle: str = ""):
     st.markdown('<div class="section-divider"></div>', unsafe_allow_html=True)
 
 
-def render_info_card(content: str):
+def render_info_card(title: str, description: str):
     st.markdown(
-        f'<div class="info-card">{content}</div>',
+        f"""
+        <div class="info-card">
+            <h4>{title}</h4>
+            <p>{description}</p>
+        </div>
+        """,
         unsafe_allow_html=True
     )
-
 
 def render_footer():
     st.markdown(
@@ -559,26 +592,25 @@ def auto_assign_rp_for_subject_booking(booking):
 def show_home():
     render_header("Class Booking System", "Welcome to the class booking platform.")
 
-    col1, col2 = st.columns(2)
+    col1, col2 = st.columns(2, gap="large")
 
     with col1:
         render_info_card(
-            "<h4 style='margin:0 0 0.35rem 0;'>Login</h4>"
-            "<div style='color:#4b5563;'>Already registered? Login here.</div>"
+            "Login",
+            "Already registered? Access your dashboard securely and continue managing your class bookings."
         )
         if st.button("Go to Login", use_container_width=True, key="home_login"):
             go_to("login")
 
     with col2:
         render_info_card(
-            "<h4 style='margin:0 0 0.35rem 0;'>Register</h4>"
-            "<div style='color:#4b5563;'>New user? Create an account.</div>"
+            "Register",
+            "New user? Create your account to start using the class booking system."
         )
         if st.button("Go to Register", use_container_width=True, key="home_register"):
             go_to("register")
 
     render_footer()
-
 
 def show_register_choice():
     render_header("Registration", "Choose your role to continue.")
