@@ -855,12 +855,13 @@ def show_sales_dashboard():
     st.write(f"Welcome, {st.session_state.user_name}")
     st.markdown("---")
 
-    tab1, tab2, tab3, tab4 = st.tabs([
-        "Book Class",
-        "Class Status",
-        "All Classes",
-        "Add Feedback"
-    ])
+    tab1, tab2, tab3, tab4, tab5 = st.tabs([
+            "Book Class",
+            "Class Status",
+            "All Classes",
+            "Add Feedback",
+            "Chatbot"
+        ])
 
     session_display_map = {
         "live_class": "Live Class",
