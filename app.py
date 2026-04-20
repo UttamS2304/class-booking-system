@@ -12,7 +12,6 @@ st.set_page_config(
     initial_sidebar_state="collapsed"
 )
 
-
 def hide_streamlit_chrome():
     st.markdown(
         """
