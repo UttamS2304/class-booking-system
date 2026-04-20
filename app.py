@@ -609,13 +609,17 @@ def show_resource_register():
 
         subject_1 = st.selectbox("Subject 1 *", ["Select Subject"] + subject_options)
 
-        subject_2_options = ["None"] + [s for s in subject_options if s != subject_1]
-        subject_2 = st.selectbox("Subject 2 (Optional)", subject_2_options)
+        subject_2 = st.selectbox(
+            "Subject 2 (Optional)",
+            ["None"] + subject_options,
+            key="resource_subject_2"
+        )
 
-        subject_3_options = ["None"] + [
-            s for s in subject_options if s not in [subject_1, subject_2]
-        ]
-        subject_3 = st.selectbox("Subject 3 (Optional)", subject_3_options)
+        subject_3 = st.selectbox(
+            "Subject 3 (Optional)",
+            ["None"] + subject_options,
+            key="resource_subject_3"
+        )
 
         password = st.text_input("Password", type="password")
 
@@ -636,6 +640,14 @@ def show_resource_register():
 
         if subject_1 == "Select Subject":
             st.error("Subject 1 is required.")
+            st.stop()
+
+        if subject_2 != "None" and subject_2 == subject_1:
+            st.error("Subject 2 cannot be same as Subject 1.")
+            st.stop()
+
+        if subject_3 != "None" and subject_3 in [subject_1, subject_2]:
+            st.error("Subject 3 must be different from Subject 1 and Subject 2.")
             st.stop()
 
         try:
@@ -677,6 +689,7 @@ def show_resource_register():
             }
 
             supabase.table("resource_profiles").insert(resource_data).execute()
+
             st.success("Resource person registered successfully.")
             st.info("You can now login using your email or mobile number.")
 
