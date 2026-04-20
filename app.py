@@ -1196,7 +1196,71 @@ def show_sales_dashboard():
     st.markdown("---")
     if st.button("Logout", use_container_width=True, key="sales_logout"):
         logout()
+with tab5:
+    st.subheader("Sales Support Chatbot")
 
+    if "chat_history" not in st.session_state:
+        st.session_state.chat_history = [
+            {"role": "assistant", "content": "Hello! I am your assistant. Ask me anything about booking, slots, subjects or sessions."}
+        ]
+
+    # Display chat
+    for msg in st.session_state.chat_history:
+        with st.chat_message(msg["role"]):
+            st.markdown(msg["content"])
+
+    user_input = st.chat_input("Ask your question...")
+
+    if user_input:
+        st.session_state.chat_history.append({"role": "user", "content": user_input})
+
+        q = user_input.lower()
+
+        # ----------- LOGIC -----------
+
+        if "live class" in q:
+            response = "Live Classes are currently not available."
+
+        elif "mini workshop" in q:
+            response = "Mini Workshop is a 1-hour session. It works like AVRD (manual RP assignment)."
+
+        elif "avrd" in q:
+            response = "AVRD session duration is 1 hour and RP is assigned manually."
+
+        elif "product training" in q:
+            response = "Product Training is 45 minutes and RP is auto-assigned based on subject."
+
+        elif "workshop" in q:
+            response = "Workshop duration is 2 hours and RP is assigned manually."
+
+        elif "slot" in q or "time" in q:
+            response = "Time slots depend on session type:\n- 45 min (Product Training)\n- 1 hour (AVRD, Mini Workshop)\n- 2 hour (Workshop)"
+
+        elif "subject" in q:
+            response = "Subjects available: Maths, Hindi, English, Science, SST, Computer, GK, etc."
+
+        elif "book" in q:
+            response = "Go to 'Book Class' tab → Fill details → Select slot → Submit."
+
+        elif "rule" in q:
+            response = "Booking must be done at least 1 day in advance."
+
+        elif "rp" in q:
+            response = "RP is auto-assigned for Product Training. Manual for AVRD, Mini Workshop and Workshop."
+
+        elif "feedback" in q:
+            response = "You can give feedback after class completion in 'Add Feedback' tab."
+
+        else:
+            response = "I can help with booking, slots, subjects, RP assignment and session types."
+
+        st.session_state.chat_history.append({"role": "assistant", "content": response})
+
+        st.rerun()
+
+    if st.button("Clear Chat"):
+        st.session_state.chat_history = []
+        st.rerun()
     render_footer()
 
 
