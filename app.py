@@ -1196,13 +1196,13 @@ def show_sales_dashboard():
     st.markdown("---")
     if st.button("Logout", use_container_width=True, key="sales_logout"):
         logout()
-with tab5:
-    st.subheader("Sales Support Chatbot")
+    with tab5:
+        st.subheader("Sales Support Chatbot")
 
-    if "chat_history" not in st.session_state:
-        st.session_state.chat_history = [
-            {"role": "assistant", "content": "Hello! I am your assistant. Ask me anything about booking, slots, subjects or sessions."}
-        ]
+        if "chat_history" not in st.session_state:
+            st.session_state.chat_history = [
+                {"role": "assistant", "content": "Hello! I am your assistant. Ask me anything about booking, slots, subjects or sessions."}
+            ]    
 
     # Display chat
     for msg in st.session_state.chat_history:
